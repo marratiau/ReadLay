@@ -10,10 +10,39 @@ import SwiftUI
 struct SpineView: View {
     let book: Book
     
+    // ADDED: Dynamic width based on page count (like real books!)
+    private var spineWidth: CGFloat {
+        switch book.totalPages {
+        case 0..<200:
+            return 24 // Thin books
+        case 200..<400:
+            return 30 // Medium books
+        case 400..<600:
+            return 36 // Thick books
+        default:
+            return 42 // Very thick books
+        }
+    }
+    
+    // ADDED: Dynamic font size based on title length
+    private var titleFontSize: CGFloat {
+        let titleLength = book.title.count
+        switch titleLength {
+        case 0..<15:
+            return 9 // Short titles
+        case 15..<25:
+            return 8 // Medium titles
+        case 25..<35:
+            return 7 // Long titles
+        default:
+            return 6 // Very long titles
+        }
+    }
+    
     var body: some View {
         ZStack {
             // Main spine background
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 3)
                 .fill(
                     LinearGradient(
                         gradient: Gradient(colors: [
@@ -25,41 +54,20 @@ struct SpineView: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 28, height: 155) // REDUCED: Even narrower for closer spacing
-                .overlay(
-                    // Spine highlight
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.4),
-                                    Color.clear,
-                                    Color.black.opacity(0.15)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                )
-                .overlay(
-                    // Left edge highlight (REMOVED separator-like elements)
-                    Rectangle()
-                        .fill(Color.white.opacity(0.3)) // REDUCED: Less prominent
-                        .frame(width: 1)
-                        .offset(x: -12.5), // ADJUSTED: Updated offset
-                    alignment: .leading
-                )
+                .frame(width: spineWidth, height: 155) // DYNAMIC: Width varies, height fixed
             
-            // Title text
+            // Title text - IMPROVED: Better scaling for long titles
             Text(book.title)
-                .font(.system(size: 9, weight: .semibold, design: .default))
+                .font(.system(size: titleFontSize, weight: .semibold))
                 .foregroundColor(.white)
-                .rotationEffect(.degrees(-90))
-                .frame(width: 120)
-                .lineLimit(3)
+                .lineLimit(5) // INCREASED: More lines for very long titles
                 .multilineTextAlignment(.center)
-                .shadow(color: .black.opacity(0.4), radius: 1, x: 0, y: 1)
+                .minimumScaleFactor(0.5) // INCREASED: Can shrink up to 50%
+                .rotationEffect(.degrees(-90))
+                .frame(width: 140, height: spineWidth - 4) // CONSTRAINED: Height matches spine width
+                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
         }
-        .shadow(color: .black.opacity(0.15), radius: 1, x: 0.5, y: 1) // REDUCED: Subtler shadow
+        .frame(width: spineWidth, height: 155) // ENFORCED: Exact dimensions
+        .clipped() // CRITICAL: Prevents any overflow that could change height
     }
 }

@@ -66,7 +66,6 @@ struct MyBookshelfView: View {
             
             Spacer()
             
-            // FIXED: Connected to actual balance from ViewModel
             balanceSection
         }
     }
@@ -112,11 +111,11 @@ struct MyBookshelfView: View {
     
     private var booksScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: -2) { // IMPROVED: Negative spacing so books overlap slightly like real shelf
+            HStack(spacing: 4) { // ADDED: Small gap between books (4px)
                 existingBooks
                 addBookButton
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
     }
@@ -129,11 +128,7 @@ struct MyBookshelfView: View {
                     .degrees(selectedBook?.id == book.id ? 3 : 0),
                     axis: (x: 0, y: 1, z: 0)
                 )
-                .shadow(
-                    color: selectedBook?.id == book.id ? book.spineColor.opacity(0.4) : .shelfShadow.opacity(0.3),
-                    radius: selectedBook?.id == book.id ? 8 : 3,
-                    x: 0, y: selectedBook?.id == book.id ? 6 : 2
-                )
+                // REMOVED: All shadows that create visual gaps between books
                 .zIndex(selectedBook?.id == book.id ? 1 : 0)
                 .onTapGesture {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -148,7 +143,7 @@ struct MyBookshelfView: View {
             showingBookSearch = true
         }) {
             ZStack {
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 3)
                     .fill(
                         LinearGradient(
                             gradient: Gradient(colors: [
@@ -159,19 +154,19 @@ struct MyBookshelfView: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: 28, height: 155) // MATCHED: Same width as SpineView
+                    .frame(width: 30, height: 155) // FIXED: Standard medium width
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.goodreadsAccent.opacity(0.5), lineWidth: 1.5)
+                        RoundedRectangle(cornerRadius: 3)
+                            .stroke(Color.goodreadsAccent.opacity(0.5), lineWidth: 1)
                     )
                 
                 Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold)) // REDUCED: Slightly smaller
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.goodreadsAccent)
             }
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.leading, 12) // INCREASED: More separation from books
+        .padding(.leading, 12)
     }
     
     private var shelfEdge: some View {
@@ -329,3 +324,4 @@ struct MyBookshelfView: View {
 #Preview {
     MyBookshelfView(readSlipViewModel: ReadSlipViewModel())
 }
+
