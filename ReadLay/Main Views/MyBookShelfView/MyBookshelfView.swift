@@ -4,7 +4,6 @@
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
-
 import SwiftUI
 
 struct MyBookshelfView: View {
@@ -31,7 +30,7 @@ struct MyBookshelfView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("BetsPlaced"))) { _ in
-            // ADDED: Auto-close bet row after placing bets
+            // Auto-close bet row after placing bets
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 selectedBook = nil
             }
@@ -51,14 +50,36 @@ struct MyBookshelfView: View {
     
     // MARK: - Header Section
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("My Bookshelf")
-                .font(.system(size: 28, weight: .bold, design: .serif))
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("My Bookshelf")
+                    .font(.system(size: 28, weight: .bold, design: .serif))
+                    .foregroundColor(.goodreadsBrown)
+                
+                Text(books.isEmpty ? "Add books to get started" : "Tap a book to see reading odds")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.goodreadsAccent)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
+            
+            Spacer()
+            
+            // FIXED: Connected to actual balance from ViewModel
+            balanceSection
+        }
+    }
+    
+    private var balanceSection: some View {
+        VStack(spacing: 4) {
+            Text("Balance")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundColor(.goodreadsBrown)
             
-            Text(books.isEmpty ? "Add books to get started" : "Tap a book to see reading odds")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.goodreadsAccent)
+            Text("$\(readSlipViewModel.currentBalance, specifier: "%.2f")")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.goodreadsBrown)
         }
         .padding(.horizontal, 24)
         .padding(.top, 16)
@@ -91,7 +112,7 @@ struct MyBookshelfView: View {
     
     private var booksScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
+            HStack(spacing: -2) { // IMPROVED: Negative spacing so books overlap slightly like real shelf
                 existingBooks
                 addBookButton
             }
@@ -138,18 +159,19 @@ struct MyBookshelfView: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: 32, height: 155)
+                    .frame(width: 28, height: 155) // MATCHED: Same width as SpineView
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(Color.goodreadsAccent.opacity(0.5), lineWidth: 1.5)
                     )
                 
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold)) // REDUCED: Slightly smaller
                     .foregroundColor(.goodreadsAccent)
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .padding(.leading, 12) // INCREASED: More separation from books
     }
     
     private var shelfEdge: some View {
@@ -187,7 +209,7 @@ struct MyBookshelfView: View {
             )
     }
     
-    // MARK: - Selected Book Section - FIXED: Center alignment
+    // MARK: - Selected Book Section
     private var selectedBookSection: some View {
         VStack {
             if let book = selectedBook {
@@ -198,7 +220,7 @@ struct MyBookshelfView: View {
                 placeholderState
             }
         }
-        .frame(maxWidth: .infinity) // ADDED: Full width
+        .frame(maxWidth: .infinity)
     }
     
     private func selectedBookDetails(book: Book) -> some View {
@@ -240,7 +262,7 @@ struct MyBookshelfView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 32)
-        .frame(maxWidth: .infinity) // ADDED: Center content
+        .frame(maxWidth: .infinity)
     }
     
     private var addBookEmptyStateButton: some View {
@@ -274,7 +296,7 @@ struct MyBookshelfView: View {
                 .foregroundColor(.goodreadsAccent.opacity(0.7))
         }
         .frame(height: 60)
-        .frame(maxWidth: .infinity) // ADDED: Center content
+        .frame(maxWidth: .infinity)
         .padding(.top, 16)
     }
     

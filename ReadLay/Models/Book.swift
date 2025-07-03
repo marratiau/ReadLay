@@ -46,16 +46,6 @@ struct Book: Identifiable, Hashable {
         ]
     }
     
-    // NEW: Journal takeaway odds
-    var journalOdds: [(String, String)] {
-        // Base odds for journal entries (easier than completion)
-        return [
-            ("1+ Takeaway", formatOdds(120)),   // Easy
-            ("2+ Takeaways", formatOdds(180)), // Medium
-            ("3+ Takeaways", formatOdds(280))  // Harder
-        ]
-    }
-    
     private func calculateOdds(timeframe: Int, baseMultiplier: Double, pagesFactor: Double) -> Int {
         let pagesPerDay = Double(totalPages) / Double(timeframe)
         
@@ -77,6 +67,40 @@ struct Book: Identifiable, Hashable {
     
     private func formatOdds(_ value: Int) -> String {
         return "+\(value)"
+    }
+    
+    // Journal action odds
+    var journalOdds: [(String, String)] {
+        let baseMultiplier = difficulty.multiplier
+        
+        // Generate odds for different numbers of takeaways/notes
+        let fewOdds = calculateJournalOdds(count: "1-3", baseMultiplier: baseMultiplier)
+        let someOdds = calculateJournalOdds(count: "4-7", baseMultiplier: baseMultiplier)
+        let manyOdds = calculateJournalOdds(count: "8+", baseMultiplier: baseMultiplier)
+        
+        return [
+            ("1-3 Notes", formatOdds(fewOdds)),
+            ("4-7 Notes", formatOdds(someOdds)),
+            ("8+ Notes", formatOdds(manyOdds))
+        ]
+    }
+
+    private func calculateJournalOdds(count: String, baseMultiplier: Double) -> Int {
+        let difficultyFactor: Double
+        
+        switch count {
+        case "1-3": // Easier - most people write a few notes
+            difficultyFactor = 0.5
+        case "4-7": // Moderate - good engagement
+            difficultyFactor = 1.0
+        case "8+": // Harder - very engaged reading
+            difficultyFactor = 2.0
+        default:
+            difficultyFactor = 1.0
+        }
+        
+        let finalOdds = 100 + Int((difficultyFactor * baseMultiplier * 30))
+        return min(max(finalOdds, 105), 400)
     }
 }
 

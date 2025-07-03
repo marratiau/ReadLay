@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 6/4/25.
 //
 
-
 import SwiftUI
 
 struct SpineView: View {
@@ -26,7 +25,7 @@ struct SpineView: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 32, height: 155)
+                .frame(width: 28, height: 155) // REDUCED: Even narrower for closer spacing
                 .overlay(
                     // Spine highlight
                     RoundedRectangle(cornerRadius: 4)
@@ -43,11 +42,11 @@ struct SpineView: View {
                         )
                 )
                 .overlay(
-                    // Left edge highlight
+                    // Left edge highlight (REMOVED separator-like elements)
                     Rectangle()
-                        .fill(Color.white.opacity(0.5))
-                        .frame(width: 1.5)
-                        .offset(x: -14.5),
+                        .fill(Color.white.opacity(0.3)) // REDUCED: Less prominent
+                        .frame(width: 1)
+                        .offset(x: -12.5), // ADJUSTED: Updated offset
                     alignment: .leading
                 )
             
@@ -61,6 +60,6 @@ struct SpineView: View {
                 .multilineTextAlignment(.center)
                 .shadow(color: .black.opacity(0.4), radius: 1, x: 0, y: 1)
         }
-        .shadow(color: .black.opacity(0.2), radius: 2, x: 1, y: 2)
+        .shadow(color: .black.opacity(0.15), radius: 1, x: 0.5, y: 1) // REDUCED: Subtler shadow
     }
 }

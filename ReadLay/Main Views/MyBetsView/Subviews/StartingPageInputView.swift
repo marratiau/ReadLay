@@ -10,7 +10,6 @@ import SwiftUI
 
 struct StartingPageInputView: View {
     @ObservedObject var sessionViewModel: ReadingSessionViewModel
-    @State private var startingPageText: String = ""
     let book: Book
     let lastReadPage: Int
     let onStart: (Int) -> Void
@@ -26,7 +25,7 @@ struct StartingPageInputView: View {
                         .font(.system(size: 48))
                         .foregroundColor(.goodreadsBrown)
                     
-                    Text("Ready to Read?")
+                    Text("Ready to Continue Reading?")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.goodreadsBrown)
                     
@@ -43,7 +42,7 @@ struct StartingPageInputView: View {
                                 .foregroundColor(.goodreadsAccent)
                         }
                         
-                        // ADDED: Show last read page
+                        // Show last read page
                         if lastReadPage > 1 {
                             Text("Last read: page \(lastReadPage)")
                                 .font(.system(size: 12, weight: .medium))
@@ -60,7 +59,7 @@ struct StartingPageInputView: View {
                 
                 // Starting page input
                 VStack(spacing: 12) {
-                    TextField("Enter starting page", text: $startingPageText)
+                    TextField("Enter starting page", text: $sessionViewModel.startingPageText)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.goodreadsBrown)
                         .multilineTextAlignment(.center)
@@ -71,14 +70,33 @@ struct StartingPageInputView: View {
                                 .fill(Color.goodreadsBeige)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 2)
+                                        .stroke(
+                                            sessionViewModel.validationError != nil ?
+                                                Color.red.opacity(0.6) :
+                                                Color.goodreadsAccent.opacity(0.3),
+                                            lineWidth: 2
+                                        )
                                 )
                         )
+                        .onChange(of: sessionViewModel.startingPageText) { newValue in
+                            sessionViewModel.setStartingPageText(newValue)
+                        }
                     
-                    // ADDED: Quick select for last read page
+                    // Error message
+                    if let error = sessionViewModel.validationError {
+                        Text(error)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 8)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .animation(.easeInOut(duration: 0.2), value: sessionViewModel.validationError)
+                    }
+                    
+                    // Quick select for last read page
                     if lastReadPage > 1 {
                         Button(action: {
-                            startingPageText = String(lastReadPage)
+                            sessionViewModel.setStartingPageText(String(lastReadPage))
                         }) {
                             Text("Continue from page \(lastReadPage)")
                                 .font(.system(size: 14, weight: .medium))
@@ -94,6 +112,8 @@ struct StartingPageInputView: View {
                                         )
                                 )
                         }
+                        .transition(.opacity.combined(with: .scale))
+                        .animation(.easeInOut(duration: 0.2), value: lastReadPage)
                     }
                     
                     Text("page number")
@@ -123,9 +143,10 @@ struct StartingPageInputView: View {
                     }
                     
                     Button(action: {
-                        if let page = Int(startingPageText), page > 0, page <= book.totalPages {
+                        sessionViewModel.startReading()
+                        if sessionViewModel.validationError == nil,
+                           let page = Int(sessionViewModel.startingPageText) {
                             onStart(page)
-                            sessionViewModel.setStartingPage(page)
                         }
                     }) {
                         Text("Start Reading")
@@ -136,11 +157,13 @@ struct StartingPageInputView: View {
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
                                     .fill(
-                                        isValidInput ? Color.goodreadsBrown : Color.goodreadsAccent.opacity(0.5)
+                                        sessionViewModel.isValidStartingInput ?
+                                            Color.goodreadsBrown :
+                                            Color.goodreadsAccent.opacity(0.5)
                                     )
                             )
                     }
-                    .disabled(!isValidInput)
+                    .disabled(!sessionViewModel.isValidStartingInput)
                 }
                 .padding(.horizontal, 20)
             }
@@ -153,15 +176,19 @@ struct StartingPageInputView: View {
             .padding(.horizontal, 40)
         }
         .onAppear {
-            // Pre-fill with last read page if available
-            if lastReadPage > 1 {
-                startingPageText = String(lastReadPage)
+            // ViewModel handles pre-filling with last read page
+            // No need to set it here since it's already done in startReadingSession
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    hideKeyboard()
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.goodreadsBrown)
             }
         }
     }
-    
-    private var isValidInput: Bool {
-        guard let page = Int(startingPageText) else { return false }
-        return page > 0 && page <= book.totalPages
-    }
 }
+

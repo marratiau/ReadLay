@@ -16,9 +16,12 @@ struct ReadingSession: Identifiable {
     var startingPage: Int = 0
     var endingPage: Int = 0
     var isCompleted: Bool = false
+    var comment: String = "" // NEW: Mandatory comment/takeaway
     
+    // FIXED: Correct page counting (inclusive)
     var pagesRead: Int {
-        return max(0, endingPage - startingPage)
+        guard endingPage > 0 && startingPage > 0 else { return 0 }
+        return max(0, endingPage - startingPage + 1)
     }
     
     var duration: TimeInterval {

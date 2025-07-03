@@ -15,7 +15,8 @@ struct JournalEntry: Identifiable, Codable {
     let bookTitle: String
     let bookAuthor: String?
     let date: Date
-    let takeaways: [String]
+    let comment: String // Main reading comment/takeaway
+    let engagementEntries: [EngagementEntry] // Quotes, thoughts, etc.
     let sessionDuration: TimeInterval
     let pagesRead: Int
     let startingPage: Int
@@ -37,4 +38,15 @@ struct JournalEntry: Identifiable, Codable {
             return "\(minutes)m"
         }
     }
+    
+    var hasEngagementContent: Bool {
+        return !engagementEntries.isEmpty
+    }
+}
+
+struct EngagementEntry: Identifiable, Codable {
+    let id: UUID
+    let type: EngagementGoal.EngagementType
+    let content: String
+    let timestamp: Date
 }
