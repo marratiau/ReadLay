@@ -5,6 +5,9 @@
 //  Created by Mateo Arratia on 6/4/25.
 //
 
+//  ReadSlipViewModel.swift - UPDATED EXISTING FILE
+//  Key changes: Fixed progress calculation + resolved method name conflicts + day progression
+
 import SwiftUI
 import Combine
 
@@ -15,7 +18,8 @@ class ReadSlipViewModel: ObservableObject {
     @Published var completedBets: [CompletedBet] = []
     @Published var journalEntries: [JournalEntry] = []
     @Published var dailyProgress: [UUID: Int] = [:] // Pages read TODAY
-    @Published var totalProgress: [UUID: Int] = [:] // Total pages read in book
+    @Published var totalPagesRead: [UUID: Int] = [:] // RENAMED: Total pages read (cumulative)
+    @Published var currentPagePosition: [UUID: Int] = [:] // NEW: Current page position in book
     @Published var lastReadPage: [UUID: Int] = [:] // Last page read for each book
     @Published var engagementProgress: [UUID: [UUID: Int]] = [:]
     
@@ -81,38 +85,109 @@ class ReadSlipViewModel: ObservableObject {
         return (getActiveReadingBet(for: bookId), getActiveEngagementBet(for: bookId))
     }
     
+    // MARK: - FIXED Progress Tracking
+    func updateReadingProgress(for betId: UUID, startingPage: Int, endingPage: Int) {
+        // Correct page counting (inclusive)
+        let pagesRead = max(0, endingPage - startingPage + 1)
+        
+        // Update daily progress (pages read in this session today)
+        dailyProgress[betId] = (dailyProgress[betId] ?? 0) + pagesRead
+        
+        // Update total pages read (cumulative count)
+        totalPagesRead[betId] = (totalPagesRead[betId] ?? 0) + pagesRead
+        
+        // FIXED: Update current page position (this is what should be displayed)
+        currentPagePosition[betId] = endingPage
+        
+        // Update last read page
+        lastReadPage[betId] = endingPage
+        
+        print("DEBUG: Updated progress for bet \(betId)")
+        print("DEBUG: Starting page: \(startingPage), Ending page: \(endingPage)")
+        print("DEBUG: Pages read this session: \(pagesRead)")
+        print("DEBUG: Total pages read: \(totalPagesRead[betId] ?? 0)")
+        print("DEBUG: Current page position: \(endingPage)")
+        print("DEBUG: Last read page: \(endingPage)")
+        
+        // Force UI update
+        objectWillChange.send()
+        
+        // Check if any bets are completed
+        checkForCompletedBets()
+    }
+    
+    // MARK: - UPDATED Progress Getters
+    
+    /// Get current page position in the book (what should be displayed in progress)
+    func getCurrentPagePosition(for betId: UUID) -> Int {
+        return currentPagePosition[betId] ?? 1
+    }
+    
+    /// Get total pages read for a bet (cumulative count across all sessions)
+    func getTotalPagesRead(for betId: UUID) -> Int {
+        return totalPagesRead[betId] ?? 0
+    }
+    
+    /// UPDATED: This should return current page position for progress calculations
+    func getTotalProgress(for betId: UUID) -> Int {
+        return getCurrentPagePosition(for: betId)
+    }
+    
+    // Helper methods for better MVVM
+    func getDailyProgress(for betId: UUID) -> Int {
+        return dailyProgress[betId] ?? 0
+    }
+    
+    func getLastReadPage(for betId: UUID) -> Int {
+        return lastReadPage[betId] ?? 1
+    }
+    
+    // Check if daily goal is completed
+    func isDailyGoalCompleted(for betId: UUID) -> Bool {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
+        let dailyPagesRead = getDailyProgress(for: betId)
+        return dailyPagesRead >= bet.pagesPerDay
+    }
+    
+    // FIXED: Check if book is completed using current page position
+    func isBookCompleted(for betId: UUID) -> Bool {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
+        let currentPage = getCurrentPagePosition(for: betId)
+        return currentPage >= bet.book.totalPages
+    }
+    
     // MARK: - Enhanced Day Tracking
     
     /// Get progress status for a reading bet
     func getProgressStatus(for betId: UUID) -> ReadingBet.ProgressStatus {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return .onTrack }
-        let actualProgress = getTotalProgress(for: betId)
-        return bet.getProgressStatus(actualProgress: actualProgress)
+        let currentPage = getCurrentPagePosition(for: betId)
+        return bet.getProgressStatus(actualProgress: currentPage)
     }
     
     /// Check if user can work on next day's goal (get ahead functionality)
     func canGetAhead(for betId: UUID) -> Bool {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
-        let actualProgress = getTotalProgress(for: betId)
+        let currentPage = getCurrentPagePosition(for: betId)
         let currentDayTarget = bet.expectedPagesToday
         
         // Can get ahead if current day's goal is completed and not on final day
-        return actualProgress >= currentDayTarget && bet.currentDay < bet.totalDays
+        return currentPage >= currentDayTarget && bet.currentDay < bet.totalDays
     }
     
     /// Get next available day to work on
     func getNextAvailableDay(for betId: UUID) -> Int {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return 1 }
-        let actualProgress = getTotalProgress(for: betId)
-        return bet.getNextAvailableDay(actualProgress: actualProgress)
+        let currentPage = getCurrentPagePosition(for: betId)
+        return bet.getNextAvailableDay(actualProgress: currentPage)
     }
     
     /// Check if daily goal is completed for a specific day
     func isDailyGoalCompleted(for betId: UUID, day: Int) -> Bool {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
-        let actualProgress = getTotalProgress(for: betId)
+        let currentPage = getCurrentPagePosition(for: betId)
         let targetProgress = bet.expectedPagesByDay(day)
-        return actualProgress >= targetProgress
+        return currentPage >= targetProgress
     }
     
     /// Check if user is behind schedule
@@ -131,21 +206,23 @@ class ReadSlipViewModel: ObservableObject {
             return (0, 0, .onTrack)
         }
         
-        let actualProgress = getTotalProgress(for: betId)
+        let currentPage = getCurrentPagePosition(for: betId)
         let expectedProgress = bet.expectedPagesToday
-        let status = bet.getProgressStatus(actualProgress: actualProgress)
+        let status = bet.getProgressStatus(actualProgress: currentPage)
         
-        return (actualProgress, expectedProgress, status)
+        return (currentPage, expectedProgress, status)
     }
     
     // MARK: - Day Management
     
-    /// ADDED: Start next day for a bet (advance to work on next day's goal)
+    /// UPDATED: Start next day for a bet (reveals next day and advances current day)
     func startNextDay(for betId: UUID) {
-        guard let bet = placedBets.first(where: { $0.id == betId }) else {
+        guard let betIndex = placedBets.firstIndex(where: { $0.id == betId }) else {
             print("DEBUG: No bet found with ID \(betId)")
             return
         }
+        
+        var bet = placedBets[betIndex]
         
         // Check if can advance to next day
         guard bet.currentDay < bet.totalDays else {
@@ -154,20 +231,29 @@ class ReadSlipViewModel: ObservableObject {
         }
         
         // Check if current day goal is completed
-        let currentProgress = getTotalProgress(for: betId)
+        let currentPage = getCurrentPagePosition(for: betId)
         let currentDayTarget = bet.pagesPerDay * bet.currentDay
         
-        guard currentProgress >= currentDayTarget else {
+        guard currentPage >= currentDayTarget else {
             print("DEBUG: Current day goal not completed, cannot advance to next day")
             return
         }
         
-        // Reset daily progress to start fresh for the new day
-        // The user can now work on the next day's goal
-        resetDailyProgress(for: betId)
+        // Advance to next day
+        bet.advanceToNextDay()
+        placedBets[betIndex] = bet
         
-        print("DEBUG: Reset daily progress for bet \(betId) - user can now work on day \(bet.currentDay + 1)")
+        print("DEBUG: Advanced to day \(bet.currentDay) for bet \(betId)")
+        
+        // Force UI update to show new daily bet views
         objectWillChange.send()
+        
+        // Post notification that day was advanced (optional, for additional UI updates)
+        NotificationCenter.default.post(
+            name: NSNotification.Name("DayAdvanced"),
+            object: nil,
+            userInfo: ["betId": betId, "newDay": bet.currentDay]
+        )
     }
     
     // MARK: - Reading Bets
@@ -241,7 +327,8 @@ class ReadSlipViewModel: ObservableObject {
         for bet in betSlip.readingBets {
             placedBets.append(bet)
             dailyProgress[bet.id] = 0
-            totalProgress[bet.id] = 0
+            totalPagesRead[bet.id] = 0
+            currentPagePosition[bet.id] = 1 // Start at page 1
             lastReadPage[bet.id] = 1
         }
         
@@ -267,34 +354,6 @@ class ReadSlipViewModel: ObservableObject {
         print("Remaining balance: $\(formattedBalance)")
     }
     
-    // MARK: - Progress Tracking
-    func updateReadingProgress(for betId: UUID, startingPage: Int, endingPage: Int) {
-        // Correct page counting (inclusive)
-        let pagesRead = max(0, endingPage - startingPage + 1)
-        
-        // Update daily progress (pages read in this session today)
-        dailyProgress[betId] = (dailyProgress[betId] ?? 0) + pagesRead
-        
-        // Update total progress (total pages read in the book)
-        totalProgress[betId] = (totalProgress[betId] ?? 0) + pagesRead
-        
-        // Update last read page
-        lastReadPage[betId] = endingPage
-        
-        print("DEBUG: Updated progress for bet \(betId)")
-        print("DEBUG: Starting page: \(startingPage), Ending page: \(endingPage)")
-        print("DEBUG: Pages read this session: \(pagesRead)")
-        print("DEBUG: Total progress: \(totalProgress[betId] ?? 0)")
-        print("DEBUG: Daily progress: \(dailyProgress[betId] ?? 0)")
-        print("DEBUG: Last read page: \(endingPage)")
-        
-        // Force UI update
-        objectWillChange.send()
-        
-        // Check if any bets are completed
-        checkForCompletedBets()
-    }
-    
     func updateEngagementProgress(for betId: UUID, goalId: UUID, increment: Int = 1) {
         if engagementProgress[betId] == nil {
             engagementProgress[betId] = [:]
@@ -311,33 +370,6 @@ class ReadSlipViewModel: ObservableObject {
         objectWillChange.send()
         print("DEBUG: Updated engagement progress for bet \(betId), goal \(goalId)")
         print("DEBUG: New count: \(currentCount + increment)")
-    }
-    
-    func getLastReadPage(for betId: UUID) -> Int {
-        return lastReadPage[betId] ?? 1
-    }
-    
-    // Helper methods for better MVVM
-    func getDailyProgress(for betId: UUID) -> Int {
-        return dailyProgress[betId] ?? 0
-    }
-    
-    func getTotalProgress(for betId: UUID) -> Int {
-        return totalProgress[betId] ?? 0
-    }
-    
-    // Check if daily goal is completed
-    func isDailyGoalCompleted(for betId: UUID) -> Bool {
-        guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
-        let dailyPagesRead = getDailyProgress(for: betId)
-        return dailyPagesRead >= bet.pagesPerDay
-    }
-    
-    // Check if book is completed
-    func isBookCompleted(for betId: UUID) -> Bool {
-        guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
-        let totalPagesRead = getTotalProgress(for: betId)
-        return totalPagesRead >= bet.book.totalPages
     }
     
     // MARK: - Journal Management
@@ -381,16 +413,16 @@ class ReadSlipViewModel: ObservableObject {
         var betsToComplete: [ReadingBet] = []
         
         for bet in placedBets {
-            let totalPagesRead = totalProgress[bet.id] ?? 0
-            if totalPagesRead >= bet.book.totalPages {
+            let currentPage = getCurrentPagePosition(for: bet.id)
+            if currentPage >= bet.book.totalPages {
                 betsToComplete.append(bet)
             }
         }
         
         // Move completed bets to settled and pay out winnings
         for bet in betsToComplete {
-            let totalPagesRead = totalProgress[bet.id] ?? 0
-            let wasSuccessful = totalPagesRead >= bet.book.totalPages
+            let currentPage = getCurrentPagePosition(for: bet.id)
+            let wasSuccessful = currentPage >= bet.book.totalPages
             let payout = wasSuccessful ? bet.totalPayout : 0
             
             // Add winnings to balance
@@ -402,7 +434,7 @@ class ReadSlipViewModel: ObservableObject {
             let completedBet = CompletedBet(
                 originalBet: bet,
                 completedDate: Date(),
-                totalPagesRead: totalPagesRead,
+                totalPagesRead: getTotalPagesRead(for: bet.id),
                 wasSuccessful: wasSuccessful,
                 payout: payout
             )
@@ -411,7 +443,8 @@ class ReadSlipViewModel: ObservableObject {
                 completedBets.append(completedBet)
                 placedBets.removeAll { $0.id == bet.id }
                 dailyProgress.removeValue(forKey: bet.id)
-                totalProgress.removeValue(forKey: bet.id)
+                totalPagesRead.removeValue(forKey: bet.id)
+                currentPagePosition.removeValue(forKey: bet.id)
                 lastReadPage.removeValue(forKey: bet.id)
             }
         }
@@ -436,7 +469,8 @@ class ReadSlipViewModel: ObservableObject {
         return journalEntries.filter { $0.bookId == bookId }.sorted { $0.date > $1.date }
     }
     
-    func getTotalPagesRead(for bookId: UUID) -> Int {
+    // RENAMED: To avoid conflict with getTotalPagesRead(for betId:)
+    func getTotalPagesReadFromJournal(for bookId: UUID) -> Int {
         return journalEntries
             .filter { $0.bookId == bookId }
             .reduce(0) { $0 + $1.pagesRead }
@@ -447,4 +481,32 @@ class ReadSlipViewModel: ObservableObject {
             .filter { $0.bookId == bookId }
             .reduce(0) { $0 + $1.sessionDuration }
     }
+}
+
+// MARK: - Extension for Day Tracking
+extension ReadSlipViewModel {
+    /// Get number of pages read during the window for a specific day of a ReadingBet
+    func getPagesReadForDay(bet: ReadingBet, day: Int) -> Int {
+        let calendar = Calendar.current
+        guard day > 0, day <= bet.totalDays else { return 0 }
+        let dayStartDate = calendar.date(byAdding: .day, value: day - 1, to: bet.startDate)!
+        let dayEndDate = calendar.date(byAdding: .day, value: day, to: bet.startDate)!
+        let entries = journalEntries.filter { entry in
+            entry.bookId == bet.book.id &&
+            entry.date >= dayStartDate &&
+            entry.date < dayEndDate
+        }
+        let totalPages = entries.reduce(0) { $0 + $1.pagesRead }
+        return totalPages
+    }
+    
+    func getMaxPageReached(for betId: UUID) -> Int {
+        guard let readingBet = placedBets.first(where: { $0.id == betId }) else { return 0 }
+        let entries = journalEntries.filter { $0.bookId == readingBet.book.id }
+        guard !entries.isEmpty else { return 0 }
+        return entries.map { $0.endingPage ?? ($0.startingPage + $0.pagesRead - 1) }.max() ?? 0
+    }
+    
+
+    
 }

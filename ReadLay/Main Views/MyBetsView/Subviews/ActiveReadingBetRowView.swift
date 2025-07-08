@@ -4,25 +4,23 @@
 //
 //  Created by Mateo Arratia on 6/15/25.
 //
+//  ActiveReadingBetRowView.swift - FIXED WITH TRUE FANDUEL-STYLE PROGRESS
+//  Key changes: Thinner progress bar + bigger dots on top + numbers hovering above
 
 import SwiftUI
 
-// MARK: - ActiveReadingBetRowView (Enhanced with day tracking)
 struct ActiveReadingBetRowView: View {
     let bet: ReadingBet
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     
-    // ADDED: Progress status and day tracking
-    private var progressStatus: ReadingBet.ProgressStatus {
-        return readSlipViewModel.getProgressStatus(for: bet.id)
-    }
-    
-    private var progressInfo: (actual: Int, expected: Int, status: ReadingBet.ProgressStatus) {
-        return readSlipViewModel.getProgressInfo(for: bet.id)
-    }
-    
+    // FIXED: Use current page position instead of total progress
     private var currentPage: Int {
-        return readSlipViewModel.getTotalProgress(for: bet.id)
+        return readSlipViewModel.getCurrentPagePosition(for: bet.id)
+    }
+    
+    // ADDED: Get total pages read for additional context
+    private var totalPagesRead: Int {
+        return readSlipViewModel.getTotalPagesRead(for: bet.id)
     }
     
     private var progressPercentage: Double {
@@ -35,7 +33,30 @@ struct ActiveReadingBetRowView: View {
         return readSlipViewModel.isBookCompleted(for: bet.id)
     }
     
-    // ADDED: Status-based styling
+    // ADDED: Progress status and info
+    private var progressStatus: ReadingBet.ProgressStatus {
+        return readSlipViewModel.getProgressStatus(for: bet.id)
+    }
+    
+    private var progressInfo: (actual: Int, expected: Int, status: ReadingBet.ProgressStatus) {
+        return readSlipViewModel.getProgressInfo(for: bet.id)
+    }
+    
+    // ADDED: Dynamic target calculation
+    private var currentDayTarget: Int {
+        return bet.pagesPerDay * bet.currentDay
+    }
+    
+    private var nextDayTarget: Int? {
+        guard bet.currentDay < bet.totalDays else { return nil }
+        return bet.pagesPerDay * (bet.currentDay + 1)
+    }
+    
+    private var isCurrentDayCompleted: Bool {
+        return currentPage >= currentDayTarget
+    }
+    
+    // Status-based styling
     private var statusColor: Color {
         switch progressStatus {
         case .completed: return .green
@@ -59,7 +80,6 @@ struct ActiveReadingBetRowView: View {
     var body: some View {
         VStack(spacing: 12) {
             headerSection
-            // ADDED: Day tracking section
             dayTrackingSection
             progressSection
             dailyGoalSection
@@ -130,7 +150,6 @@ struct ActiveReadingBetRowView: View {
                             )
                     )
                 
-                // ADDED: Status indicator
                 Text(statusText)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.white)
@@ -144,7 +163,7 @@ struct ActiveReadingBetRowView: View {
         }
     }
     
-    // MARK: - Day Tracking Section (NEW)
+    // MARK: - Day Tracking Section (UPDATED WITH DYNAMIC TARGETS)
     private var dayTrackingSection: some View {
         VStack(spacing: 8) {
             HStack {
@@ -160,9 +179,17 @@ struct ActiveReadingBetRowView: View {
                     Text("Current Day")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.goodreadsAccent)
-                    Text("\(bet.currentDay) of \(bet.totalDays)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.goodreadsBrown)
+                    HStack(spacing: 4) {
+                        Text("\(bet.currentDay) of \(bet.totalDays)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.goodreadsBrown)
+                        
+                        if isCurrentDayCompleted {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.green)
+                        }
+                    }
                 }
                 
                 // Time remaining
@@ -177,12 +204,12 @@ struct ActiveReadingBetRowView: View {
                 
                 Spacer()
                 
-                // Expected vs actual progress
+                // Current target
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("Expected Today")
+                    Text(isCurrentDayCompleted ? "Next Target" : "Today's Target")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.goodreadsAccent)
-                    Text("\(progressInfo.expected) pages")
+                    Text("Page \(isCurrentDayCompleted ? (nextDayTarget ?? bet.book.totalPages) : currentDayTarget)")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.goodreadsBrown)
                 }
@@ -200,7 +227,7 @@ struct ActiveReadingBetRowView: View {
         }
     }
     
-    // MARK: - Progress Section
+    // MARK: - Progress Section (UPDATED WITH TRUE FANDUEL-STYLE PROGRESS BAR)
     private var progressSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -208,109 +235,188 @@ struct ActiveReadingBetRowView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
                 Spacer()
-                Text("\(currentPage)/\(bet.book.totalPages) pages")
+                Text("Page \(currentPage) of \(bet.book.totalPages)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
             }
             
-            progressBar
+            // UPDATED: True FanDuel-style progress bar
+            trueFanDuelStyleProgressBar
+            
+            HStack {
+                Text("Total Pages Read")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.goodreadsAccent.opacity(0.8))
+                Spacer()
+                Text("\(totalPagesRead) pages")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.goodreadsBrown.opacity(0.8))
+            }
         }
     }
     
-    private var progressBar: some View {
+    // MARK: - TRUE FANDUEL-STYLE PROGRESS BAR (THIN BAR + BIG DOTS ON TOP + NUMBERS ABOVE)
+    private var trueFanDuelStyleProgressBar: some View {
         GeometryReader { geometry in
-            let totalWidth = geometry.size.width
-            let progressWidth = totalWidth * progressPercentage
-            let targetPosition = totalWidth - 10
+            let barWidth = geometry.size.width
+            let fillWidth = barWidth * progressPercentage
+            let barHeight: CGFloat = 10 // Thinner progress bar
+            let dotSize: CGFloat = 18 // Bigger dots
             
-            ZStack(alignment: .leading) {
-                // Background track
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.goodreadsBeige)
-                    .frame(height: 8)
-                
-                // Progress fill
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                statusColor,
-                                statusColor.opacity(0.8)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(progressWidth, 0), height: 8)
-                
-                // Start marker (0)
-                VStack(spacing: 2) {
-                    Text("0")
-                        .font(.system(size: 9, weight: .bold))
+            VStack(spacing: 0) {
+                // Numbers hovering above dots
+                HStack {
+                    // Start number (Page 1)
+                    Text("1")
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.goodreadsAccent)
-                    Circle()
-                        .fill(Color.goodreadsAccent.opacity(0.7))
-                        .frame(width: 10, height: 10)
-                        .offset(y: 4)
-                }
-                .offset(x: -5, y: -8)
-                
-                // End marker (total pages)
-                VStack(spacing: 2) {
+                    
+                    Spacer()
+                    
+                    // End number (Total pages)
                     Text("\(bet.book.totalPages)")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundColor(isCompleted ? .green : statusColor)
-                    Circle()
-                        .fill(isCompleted ? Color.green : statusColor)
-                        .frame(width: 10, height: 10)
-                        .offset(y: 4)
                 }
-                .offset(x: targetPosition - 5, y: -8)
+                .padding(.horizontal, dotSize/2)
+                .frame(height: 16)
                 
-                // Current progress marker
-                if progressPercentage > 0.02 && !isCompleted {
-                    VStack(spacing: 2) {
-                        Text("\(currentPage)")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(statusColor)
+                // Progress bar with dots positioned on top
+                ZStack(alignment: .leading) {
+                    // Background track (thin)
+                    RoundedRectangle(cornerRadius: barHeight/2)
+                        .fill(Color.goodreadsBeige)
+                        .frame(height: barHeight)
+                    
+                    // Progress fill (thin)
+                    RoundedRectangle(cornerRadius: barHeight/2)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    isCompleted ? .green : statusColor,
+                                    isCompleted ? .green.opacity(0.8) : statusColor.opacity(0.8)
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
+                        )
+                        .frame(width: max(fillWidth, 0), height: barHeight)
+                        .animation(.easeInOut(duration: 0.3), value: progressPercentage)
+                    
+                    // Dots positioned ON TOP of the progress bar
+                    HStack {
+                        // Start dot (Page 1)
                         Circle()
                             .fill(Color.white)
-                            .frame(width: 8, height: 8)
+                            .frame(width: dotSize, height: dotSize)
                             .overlay(
                                 Circle()
-                                    .stroke(statusColor, lineWidth: 2)
+                                    .stroke(Color.goodreadsAccent, lineWidth: 2)
                             )
-                            .offset(y: 4)
-                    }
-                    .offset(x: min(progressWidth - 5, totalWidth - 15), y: -12)
-                }
-                
-                // ADDED: Expected progress marker (where you should be)
-                if !isCompleted {
-                    let expectedPercentage = Double(progressInfo.expected) / Double(bet.book.totalPages)
-                    let expectedPosition = totalWidth * expectedPercentage
-                    
-                    VStack(spacing: 2) {
-                        Text("Target")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                        
+                        // End dot (Total pages)
                         Circle()
-                            .stroke(Color.gray, lineWidth: 2)
-                            .fill(Color.clear)
-                            .frame(width: 8, height: 8)
-                            .offset(y: 4)
+                            .fill(isCompleted ? .green : Color.white)
+                            .frame(width: dotSize, height: dotSize)
+                            .overlay(
+                                Circle()
+                                    .stroke(isCompleted ? .green : statusColor, lineWidth: 2)
+                            )
+                            .overlay(
+                                Group {
+                                    if isCompleted {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            )
                     }
-                    .offset(x: min(expectedPosition - 5, totalWidth - 15), y: -12)
+                    .padding(.horizontal, dotSize/2)
+                    
+                    // Current day target dot with number above
+                    if !isCompleted {
+                        let targetPercentage = Double(currentDayTarget) / Double(bet.book.totalPages)
+                        let targetPosition = (barWidth - dotSize) * targetPercentage + dotSize/2
+                        
+                        VStack(spacing: 4) {
+                            // Number above dot
+                            Text("D\(bet.currentDay)")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(isCurrentDayCompleted ? .green : .orange)
+                            
+                            // Target dot
+                            Circle()
+                                .fill(isCurrentDayCompleted ? .green : Color.white)
+                                .frame(width: dotSize, height: dotSize)
+                                .overlay(
+                                    Circle()
+                                        .stroke(isCurrentDayCompleted ? .green : .orange, lineWidth: 2)
+                                )
+                                .overlay(
+                                    Group {
+                                        if isCurrentDayCompleted {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                )
+                        }
+                        .position(x: min(max(targetPosition, dotSize), barWidth - dotSize), y: 0)
+                    }
+                    
+                    // Next day target dot (only if current day is completed)
+                    if isCurrentDayCompleted && !isCompleted, let nextTarget = nextDayTarget {
+                        let nextTargetPercentage = Double(nextTarget) / Double(bet.book.totalPages)
+                        let nextTargetPosition = (barWidth - dotSize) * nextTargetPercentage + dotSize/2
+                        
+                        VStack(spacing: 4) {
+                            // Number above dot
+                            Text("D\(bet.currentDay + 1)")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.blue)
+                            
+                            // Next target dot
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: dotSize, height: dotSize)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.blue, lineWidth: 2)
+                                )
+                        }
+                        .position(x: min(max(nextTargetPosition, dotSize), barWidth - dotSize), y: 0)
+                    }
+                    
+                    // Current progress indicator (small dot)
+                    if currentPage > 1 && progressPercentage > 0.05 && !isCompleted {
+                        let progressPosition = (barWidth - dotSize) * progressPercentage + dotSize/2
+                        
+                        VStack(spacing: 4) {
+                            // Current page number above
+                            Text("\(currentPage)")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundColor(statusColor)
+                            
+                            // Small progress dot
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 12, height: 12)
+                                .overlay(
+                                    Circle()
+                                        .stroke(statusColor, lineWidth: 1.5)
+                                )
+                        }
+                        .position(x: min(max(progressPosition, dotSize), barWidth - dotSize), y: 0)
+                    }
                 }
+                .frame(height: dotSize)
             }
         }
-        .frame(height: 26)
+        .frame(height: 50) // Total height including numbers above
     }
     
     // MARK: - Daily Goal Section
@@ -327,7 +433,7 @@ struct ActiveReadingBetRowView: View {
             
             Spacer()
             
-            // ADDED: Show if user can get ahead
+            // Show if user can get ahead
             if readSlipViewModel.canGetAhead(for: bet.id) {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Can Get Ahead!")

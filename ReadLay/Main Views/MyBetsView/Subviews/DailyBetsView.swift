@@ -4,13 +4,8 @@
 //
 //  Created by Mateo Arratia on 7/2/25.
 //
-
-//
-//  DailyBetsView.swift
-//  ReadLay
-//
-//  Created by Mateo Arratia on 7/2/25.
-//
+//  DailyBetsView.swift - UPDATED EXISTING FILE
+//  Key changes: Fixed day progression flow to show next day without forcing reading session
 
 import SwiftUI
 
@@ -25,7 +20,6 @@ struct DailyBetsView: View {
                 if dailyBetsViewModel.dailyBets.isEmpty {
                     emptyStateView
                 } else {
-                    // REMOVED: Today's Overview section
                     betsListView
                 }
             }
@@ -61,13 +55,12 @@ struct DailyBetsView: View {
                     sessionViewModel: sessionViewModel,
                     book: bet.book
                 ) { endingPage in
-                    // FIXED: Proper session completion flow
                     handleSessionCompletion(endingPage: endingPage)
                 }
                 .transition(.opacity)
             }
             
-            // ADDED: Comment Input Overlay
+            // Comment Input Overlay
             if sessionViewModel.showingCommentInput,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -82,7 +75,6 @@ struct DailyBetsView: View {
                 .transition(.opacity)
             }
         }
-        // CHANGED: Use the new ViewModel method for better MVVM
         .onReceive(readSlipViewModel.$placedBets.combineLatest(readSlipViewModel.$dailyProgress)) { placedBets, dailyProgress in
             dailyBetsViewModel.updateDailyBetsWithMultiDay(from: placedBets, readSlipViewModel: readSlipViewModel)
         }
@@ -92,7 +84,7 @@ struct DailyBetsView: View {
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingCommentInput)
     }
     
-    // MARK: - Session Completion Handler (FIXED)
+    // MARK: - Session Completion Handler
     private func handleSessionCompletion(endingPage: Int) {
         guard let session = sessionViewModel.currentSession else { return }
         
@@ -113,7 +105,7 @@ struct DailyBetsView: View {
         // The comment input will handle final session processing
     }
     
-    // MARK: - Bets List (ENHANCED for Multi-Day)
+    // MARK: - Bets List (ENHANCED for Multi-Day with Better Logic)
     private var betsListView: some View {
         LazyVStack(spacing: 16) {
             // Group daily bets by book
@@ -130,24 +122,18 @@ struct DailyBetsView: View {
                         .padding(.horizontal, 20)
                     }
                     
-                    // Show all days for this book
+                    // UPDATED: Show days in correct order and handle progression
                     ForEach(betsForBook.sorted { $0.dayNumber < $1.dayNumber }) { bet in
                         DailyBetRowView(
                             bet: bet,
                             onStartReading: {
                                 handleStartReading(for: bet)
+                            },
+                            onStartNextDay: {
+                                handleStartNextDay(for: bet)
                             }
-                            // REMOVED: onStartNextDay parameter - will handle this differently
                         )
                         .environmentObject(readSlipViewModel)
-                        // ADDED: Context menu for starting next day
-                        .contextMenu {
-                            if readSlipViewModel.canGetAhead(for: bet.betId) && !bet.isNextDay {
-                                Button("Start Next Day") {
-                                    handleStartNextDay(for: bet)
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -156,13 +142,13 @@ struct DailyBetsView: View {
         .padding(.vertical, 16)
     }
     
-    // ADDED: Group daily bets by book
+    // Group daily bets by book
     private var groupedDailyBets: [(String, [DailyBet])] {
         let grouped = Dictionary(grouping: dailyBetsViewModel.dailyBets) { $0.book.title }
         return grouped.map { ($0.key, $0.value) }.sorted { $0.0 < $1.0 }
     }
     
-    // ADDED: Handle starting reading for existing day
+    // UPDATED: Handle starting reading for any day
     private func handleStartReading(for bet: DailyBet) {
         let lastReadPage = readSlipViewModel.getLastReadPage(for: bet.betId)
         sessionViewModel.startReadingSession(
@@ -172,9 +158,36 @@ struct DailyBetsView: View {
         )
     }
     
-    // FIXED: Handle starting next day with proper method call
+    // UPDATED: Handle starting next day - just reveals next day, doesn't force reading
     private func handleStartNextDay(for bet: DailyBet) {
+        print("DEBUG: Starting next day for bet \(bet.betId)")
+        
+        // Find the reading bet
+        guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else {
+            print("DEBUG: No reading bet found")
+            return
+        }
+        
+        // Check if current day is completed
+        let currentPage = readSlipViewModel.getCurrentPagePosition(for: bet.betId)
+        let currentDayTarget = readingBet.pagesPerDay * readingBet.currentDay
+        
+        guard currentPage >= currentDayTarget else {
+            print("DEBUG: Current day not completed, cannot start next day")
+            return
+        }
+        
+        // Check if there are more days
+        guard readingBet.currentDay < readingBet.totalDays else {
+            print("DEBUG: Already on final day")
+            return
+        }
+        
+        // This should trigger the ViewModel to reveal the next day
+        // The actual day progression logic should be handled in the ViewModel
         readSlipViewModel.startNextDay(for: bet.betId)
+        
+        print("DEBUG: Next day revealed for bet \(bet.betId)")
     }
     
     // MARK: - Empty State

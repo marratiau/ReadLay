@@ -5,13 +5,16 @@
 //  Created by Mateo Arratia on 7/2/25.
 //
 
+//  DailyBetsViewModel.swift - FIXED: Day 2 only shows AFTER tapping Start Day 2
+//  Key changes: Removed automatic next day reveal + proper day progression logic
+
 import SwiftUI
 import Combine
 
 class DailyBetsViewModel: ObservableObject {
     @Published var dailyBets: [DailyBet] = []
     
-    // ADDED: Multi-day tracking
+    // FIXED: Multi-day tracking WITHOUT automatic next day reveal
     func updateDailyBetsWithMultiDay(from placedBets: [ReadingBet], readSlipViewModel: ReadSlipViewModel) {
         var newDailyBets: [DailyBet] = []
         
@@ -19,9 +22,11 @@ class DailyBetsViewModel: ObservableObject {
             let totalProgress = readSlipViewModel.getTotalProgress(for: readingBet.id)
             let currentDay = readingBet.currentDay
             
-            // Create daily bets for all days up to current day
-            for day in 1...currentDay {
-                let dailyBet = createDailyBetForDay(
+            // UPDATED: Only show days up to and including current day
+            
+            // 1. Show ALL completed previous days (but marked as completed)
+            for day in 1..<currentDay {
+                let dailyBet = createCompletedDailyBetForDay(
                     day: day,
                     readingBet: readingBet,
                     totalProgress: totalProgress,
@@ -30,52 +35,51 @@ class DailyBetsViewModel: ObservableObject {
                 newDailyBets.append(dailyBet)
             }
             
-            // If current day goal is completed and can get ahead, prepare next day
-            let canGetAhead = readSlipViewModel.canGetAhead(for: readingBet.id)
-            if canGetAhead && currentDay < readingBet.totalDays {
-                let nextDay = currentDay + 1
-                let nextDayBet = createDailyBetForDay(
-                    day: nextDay,
-                    readingBet: readingBet,
-                    totalProgress: totalProgress,
-                    readSlipViewModel: readSlipViewModel,
-                    isNextDay: true
-                )
-                newDailyBets.append(nextDayBet)
-            }
+            // 2. Show current day (this is the only active day)
+            let currentDayBet = createDailyBetForDay(
+                day: currentDay,
+                readingBet: readingBet,
+                totalProgress: totalProgress,
+                readSlipViewModel: readSlipViewModel,
+                isCurrentDay: true
+            )
+            newDailyBets.append(currentDayBet)
+            
+            // 3. REMOVED: No automatic next day reveal
+            // Next day only appears after user explicitly taps "Start Day 2"
+            // This happens when ReadSlipViewModel.startNextDay() is called
         }
         
         dailyBets = newDailyBets
     }
     
-    // ADDED: Create daily bet for specific day
+    // ENHANCED: Create daily bet with better state management
     private func createDailyBetForDay(
         day: Int,
         readingBet: ReadingBet,
         totalProgress: Int,
         readSlipViewModel: ReadSlipViewModel,
-        isNextDay: Bool = false
+        isNextDay: Bool = false,
+        isCurrentDay: Bool = false
     ) -> DailyBet {
-        
-        // Calculate day-specific progress
         let dayStartPage = (day - 1) * readingBet.pagesPerDay + 1
         let dayEndPage = min(day * readingBet.pagesPerDay, readingBet.book.totalPages)
         let dayGoal = dayEndPage - dayStartPage + 1
-        
-        // Calculate current progress for this specific day
+
+        // UPDATED: Calculate progress for this specific day more accurately
         let currentDayProgress: Int
         if isNextDay {
             currentDayProgress = 0 // Next day hasn't started yet
         } else {
-            let progressInThisDay = max(0, min(totalProgress - dayStartPage + 1, dayGoal))
+            // Get actual pages read within this day's range
+            let currentPage = readSlipViewModel.getCurrentPagePosition(for: readingBet.id)
+            let progressInThisDay = max(0, min(currentPage - dayStartPage + 1, dayGoal))
             currentDayProgress = max(0, progressInThisDay)
         }
-        
-        // Determine completion status
-        let isCompleted = currentDayProgress >= dayGoal
+
         let progressStatus = readSlipViewModel.getProgressStatus(for: readingBet.id)
-        let canGetAhead = readSlipViewModel.canGetAhead(for: readingBet.id) && day == readingBet.currentDay
-        
+        let canGetAhead = readSlipViewModel.canGetAhead(for: readingBet.id) && isCurrentDay
+
         return DailyBet(
             book: readingBet.book,
             dailyGoal: dayGoal,
@@ -84,11 +88,41 @@ class DailyBetsViewModel: ObservableObject {
             dayNumber: day,
             betId: readingBet.id,
             startDate: readingBet.startDate,
-            isOverdue: progressStatus == .overdue && day == readingBet.currentDay,
+            isOverdue: progressStatus == .overdue && isCurrentDay,
             canGetAhead: canGetAhead,
             dayStartPage: dayStartPage,
             dayEndPage: dayEndPage,
             isNextDay: isNextDay
+        )
+    }
+    
+    // NEW: Create completed daily bet (for previous days)
+    private func createCompletedDailyBetForDay(
+        day: Int,
+        readingBet: ReadingBet,
+        totalProgress: Int,
+        readSlipViewModel: ReadSlipViewModel
+    ) -> DailyBet {
+        let dayStartPage = (day - 1) * readingBet.pagesPerDay + 1
+        let dayEndPage = min(day * readingBet.pagesPerDay, readingBet.book.totalPages)
+        let dayGoal = dayEndPage - dayStartPage + 1
+
+        // Completed days show full progress
+        let currentDayProgress = dayGoal
+
+        return DailyBet(
+            book: readingBet.book,
+            dailyGoal: dayGoal,
+            currentProgress: currentDayProgress, // Full completion
+            totalDays: readingBet.totalDays,
+            dayNumber: day,
+            betId: readingBet.id,
+            startDate: readingBet.startDate,
+            isOverdue: false, // Completed days are never overdue
+            canGetAhead: false, // Completed days can't get ahead
+            dayStartPage: dayStartPage,
+            dayEndPage: dayEndPage,
+            isNextDay: false
         )
     }
     
@@ -100,11 +134,13 @@ class DailyBetsViewModel: ObservableObject {
     
     // LEGACY: Keep for backward compatibility but prefer the new method above
     func updateDailyBets(from placedBets: [ReadingBet], dailyProgress: [UUID: Int]) {
-        dailyBets = placedBets.map { readingBet in
+        var newDailyBets: [DailyBet] = []
+        
+        for readingBet in placedBets {
             let currentProgress = dailyProgress[readingBet.id] ?? 0
             let actualDay = readingBet.currentDay
             
-            return DailyBet(
+            let dailyBet = DailyBet(
                 book: readingBet.book,
                 dailyGoal: readingBet.pagesPerDay,
                 currentProgress: currentProgress,
@@ -112,7 +148,10 @@ class DailyBetsViewModel: ObservableObject {
                 dayNumber: actualDay,
                 betId: readingBet.id
             )
+            newDailyBets.append(dailyBet)
         }
+        
+        dailyBets = newDailyBets
     }
     
     // ADDED: Enhanced day tracking methods

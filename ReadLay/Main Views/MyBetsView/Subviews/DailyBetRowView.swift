@@ -5,13 +5,16 @@
 //  Created by Mateo Arratia on 7/2/25.
 //
 
+//  DailyBetRowView.swift - FIXED WITH TRUE FANDUEL-STYLE PROGRESS
+//  Key changes: Thinner progress bar + bigger dots on top + numbers hovering above + dynamic daily views
+
 import SwiftUI
 
 struct DailyBetRowView: View {
     let bet: DailyBet
     let onStartReading: () -> Void
+    let onStartNextDay: (() -> Void)? // Optional callback for starting next day
     
-    // ADDED: Get progress status from ReadSlipViewModel
     @EnvironmentObject var readSlipViewModel: ReadSlipViewModel
     
     private var progressStatus: ReadingBet.ProgressStatus {
@@ -26,14 +29,31 @@ struct DailyBetRowView: View {
         return readSlipViewModel.getProgressInfo(for: bet.betId)
     }
     
-    // ADDED: Check if daily goal is completed (for green bar)
+    // UPDATED: More precise day completion logic
     private var isDailyGoalCompleted: Bool {
-        return bet.isCompleted
+        return bet.isCompleted || bet.currentProgress >= bet.dailyGoal
     }
     
-    // ADDED: Get next day number for "Start Day X" functionality
-    private var nextDayNumber: Int {
-        return bet.dayNumber + 1
+    // UPDATED: Check if this is a completed previous day
+    private var isPreviousCompletedDay: Bool {
+        guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else { return false }
+        return bet.dayNumber < readingBet.currentDay && isDailyGoalCompleted
+    }
+    
+    // UPDATED: Check if this is the current active day
+    private var isCurrentDay: Bool {
+        guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else { return false }
+        return bet.dayNumber == readingBet.currentDay
+    }
+    
+    // UPDATED: Check if this is a future day that can be started
+    private var canStartThisDay: Bool {
+        return bet.isNextDay && isDailyGoalCompleted
+    }
+    
+    // ADDED: Check if should show overall progress (hide for completed days)
+    private var shouldShowOverallProgress: Bool {
+        return !isPreviousCompletedDay
     }
     
     var body: some View {
@@ -45,21 +65,43 @@ struct DailyBetRowView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.goodreadsWarm)
+                .fill(backgroundColorForDayState)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(statusBorderColor, lineWidth: 1)
+                        .stroke(borderColorForDayState, lineWidth: 1)
                 )
                 .shadow(color: Color.goodreadsBrown.opacity(0.1), radius: 4, x: 0, y: 2)
         )
+        .opacity(isPreviousCompletedDay ? 0.85 : 1.0) // Slight fade for completed days
+    }
+    
+    // UPDATED: Dynamic background based on day state
+    private var backgroundColorForDayState: Color {
+        if isPreviousCompletedDay {
+            return Color.green.opacity(0.1)
+        } else if isCurrentDay && isDailyGoalCompleted {
+            return Color.blue.opacity(0.1)
+        } else if canStartThisDay {
+            return Color.orange.opacity(0.1)
+        } else {
+            return Color.goodreadsWarm
+        }
+    }
+    
+    private var borderColorForDayState: Color {
+        if isPreviousCompletedDay {
+            return Color.green.opacity(0.4)
+        } else if isCurrentDay && isDailyGoalCompleted {
+            return Color.blue.opacity(0.4)
+        } else if canStartThisDay {
+            return Color.orange.opacity(0.4)
+        } else {
+            return statusBorderColor
+        }
     }
     
     // MARK: - Status-based styling
     private var statusBorderColor: Color {
-        if isDailyGoalCompleted && canGetAhead {
-            return Color.green.opacity(0.4)
-        }
-        
         switch progressStatus {
         case .completed:
             return Color.green.opacity(0.4)
@@ -75,8 +117,10 @@ struct DailyBetRowView: View {
     }
     
     private var statusColor: Color {
-        if isDailyGoalCompleted && canGetAhead {
+        if isPreviousCompletedDay {
             return .green
+        } else if isDailyGoalCompleted && canGetAhead {
+            return .blue
         }
         
         switch progressStatus {
@@ -89,8 +133,10 @@ struct DailyBetRowView: View {
     }
     
     private var statusText: String {
-        if isDailyGoalCompleted && canGetAhead {
-            return "CAN GET AHEAD"
+        if isPreviousCompletedDay {
+            return "COMPLETED"
+        } else if isDailyGoalCompleted && canGetAhead {
+            return "CAN START NEXT"
         }
         
         switch progressStatus {
@@ -105,18 +151,11 @@ struct DailyBetRowView: View {
     // MARK: - Header Row
     private var headerRow: some View {
         HStack(spacing: 12) {
-            // TC Badge
-            Text("TC")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.white)
-                .frame(width: 24, height: 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.goodreadsBrown)
-                )
+            // Day status indicator
+            dayStatusIndicator
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Towards Completion")
+                Text("Day \(bet.dayNumber) Goal")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
                 
@@ -129,7 +168,7 @@ struct DailyBetRowView: View {
                             .foregroundColor(.goodreadsBrown)
                             .lineLimit(1)
                         
-                        Text("to read \(bet.dailyGoal) pages")
+                        Text("Read \(bet.dailyGoal) pages (\(bet.pageRange))")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.goodreadsAccent)
                     }
@@ -138,7 +177,7 @@ struct DailyBetRowView: View {
             
             Spacer()
             
-            // UPDATED: Enhanced day indicator with status
+            // Status indicator
             VStack(alignment: .trailing, spacing: 4) {
                 Text(statusText)
                     .font(.system(size: 9, weight: .bold))
@@ -155,6 +194,30 @@ struct DailyBetRowView: View {
         }
     }
     
+    // NEW: Day status indicator (TC badge equivalent)
+    private var dayStatusIndicator: some View {
+        Text("\(bet.dayNumber)")
+            .font(.system(size: 12, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 28, height: 28)
+            .background(
+                Circle()
+                    .fill(dayIndicatorColor)
+            )
+    }
+    
+    private var dayIndicatorColor: Color {
+        if isPreviousCompletedDay {
+            return .green
+        } else if isCurrentDay {
+            return .goodreadsBrown
+        } else if canStartThisDay {
+            return .orange
+        } else {
+            return .goodreadsAccent.opacity(0.6)
+        }
+    }
+    
     private var progressCircle: some View {
         Circle()
             .stroke(
@@ -162,26 +225,23 @@ struct DailyBetRowView: View {
                 lineWidth: 2
             )
             .fill(isDailyGoalCompleted ? Color.green.opacity(0.1) : Color.clear)
-            .frame(width: 16, height: 16)
+            .frame(width: 20, height: 20)
             .overlay(
                 Image(systemName: isDailyGoalCompleted ? "checkmark" : "")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.green)
             )
     }
     
     private var dayIndicator: some View {
         VStack(alignment: .trailing, spacing: 2) {
-            Text("Day \(bet.dayNumber)")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.goodreadsAccent)
-            Text("of \(bet.totalDays)")
+            Text("of \(bet.totalDays) days")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.goodreadsAccent.opacity(0.7))
         }
     }
     
-    // MARK: - Progress Section
+    // MARK: - Progress Section (UPDATED WITH TRUE FANDUEL-STYLE + CONDITIONAL OVERALL PROGRESS)
     private var progressSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Daily progress
@@ -196,79 +256,138 @@ struct DailyBetRowView: View {
                         .foregroundColor(.goodreadsBrown)
                 }
                 
-                dailyProgressBar
+                // UPDATED: True FanDuel-style daily progress bar
+                trueFanDuelStyleDailyProgressBar
             }
             
-            // ADDED: Overall progress indicator
-            HStack {
-                Text("Overall Progress")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.goodreadsAccent)
-                Spacer()
-                Text("\(progressInfo.actual)/\(bet.book.totalPages) pages")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.goodreadsBrown)
-            }
-        }
-    }
-    
-    private var dailyProgressBar: some View {
-        GeometryReader { geometry in
-            let totalWidth = geometry.size.width
-            let progressWidth = totalWidth * bet.progressPercentage
-            let targetPosition = totalWidth * 0.85
-            
-            ZStack(alignment: .leading) {
-                // Background track
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.goodreadsBeige)
-                    .frame(height: 8)
-                
-                // FIXED: Progress fill - green when daily goal completed
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                isDailyGoalCompleted ? .green : statusColor,
-                                isDailyGoalCompleted ? .green.opacity(0.8) : statusColor.opacity(0.8)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: progressWidth, height: 8)
-                
-                // Start marker (0)
-                VStack(spacing: 2) {
-                    Text("0")
-                        .font(.system(size: 9, weight: .bold))
+            // CONDITIONAL: Only show overall progress if not a completed previous day
+            if shouldShowOverallProgress {
+                HStack {
+                    Text("Overall Progress")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.goodreadsAccent)
-                    Circle()
-                        .fill(Color.goodreadsAccent.opacity(0.7))
-                        .frame(width: 10, height: 10)
-                        .offset(y: 4)
+                    Spacer()
+                    Text("\(progressInfo.actual)/\(bet.book.totalPages) pages")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.goodreadsBrown)
                 }
-                .offset(x: -5, y: -8)
-                
-                // Target marker
-                VStack(spacing: 2) {
-                    Text("\(bet.dailyGoal)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(isDailyGoalCompleted ? .green : statusColor)
-                    Circle()
-                        .fill(isDailyGoalCompleted ? .green : statusColor)
-                        .frame(width: 10, height: 10)
-                        .offset(y: 4)
-                }
-                .offset(x: targetPosition - 5, y: -8)
             }
         }
-        .frame(height: 24)
     }
     
-    // MARK: - Action Button
+    // MARK: - TRUE FANDUEL-STYLE DAILY PROGRESS BAR (THIN BAR + BIG DOTS ON TOP + NUMBERS ABOVE)
+    private var trueFanDuelStyleDailyProgressBar: some View {
+        GeometryReader { geometry in
+            let barWidth = geometry.size.width
+            let progressPercentage = bet.progressPercentage
+            let fillWidth = barWidth * progressPercentage
+            let barHeight: CGFloat = 10 // Thinner progress bar
+            let dotSize: CGFloat = 18 // Bigger dots
+            
+            VStack(spacing: 0) {
+                // Numbers hovering above dots
+                HStack {
+                    // Start number (0 pages)
+                    Text("0")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.goodreadsAccent)
+                    
+                    Spacer()
+                    
+                    // Goal number (daily goal)
+                    Text("\(bet.dailyGoal)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(isDailyGoalCompleted ? .green : statusColor)
+                }
+                .padding(.horizontal, dotSize/2)
+                .frame(height: 16)
+                
+                // Progress bar with dots positioned on top
+                ZStack(alignment: .leading) {
+                    // Background track (thin)
+                    RoundedRectangle(cornerRadius: barHeight/2)
+                        .fill(Color.goodreadsBeige)
+                        .frame(height: barHeight)
+                    
+                    // Progress fill (thin)
+                    RoundedRectangle(cornerRadius: barHeight/2)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    isDailyGoalCompleted ? .green : statusColor,
+                                    isDailyGoalCompleted ? .green.opacity(0.8) : statusColor.opacity(0.8)
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(fillWidth, 0), height: barHeight)
+                        .animation(.easeInOut(duration: 0.3), value: progressPercentage)
+                    
+                    // Dots positioned ON TOP of the progress bar
+                    HStack {
+                        // Start dot (0 pages)
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: dotSize, height: dotSize)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.goodreadsAccent, lineWidth: 2)
+                            )
+                        
+                        Spacer()
+                        
+                        // Goal dot (daily goal)
+                        Circle()
+                            .fill(isDailyGoalCompleted ? .green : Color.white)
+                            .frame(width: dotSize, height: dotSize)
+                            .overlay(
+                                Circle()
+                                    .stroke(isDailyGoalCompleted ? .green : statusColor, lineWidth: 2)
+                            )
+                            .overlay(
+                                Group {
+                                    if isDailyGoalCompleted {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            )
+                    }
+                    .padding(.horizontal, dotSize/2)
+                    
+                    // Current progress indicator (moving dot with number above)
+                    if bet.currentProgress > 0 && !isDailyGoalCompleted && progressPercentage > 0.05 {
+                        let progressPosition = (barWidth - dotSize) * progressPercentage + dotSize/2
+                        
+                        VStack(spacing: 4) {
+                            // Current progress number above
+                            Text("\(bet.currentProgress)")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(statusColor)
+                            
+                            // Moving progress dot
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 14, height: 14)
+                                .overlay(
+                                    Circle()
+                                        .stroke(statusColor, lineWidth: 2)
+                                )
+                        }
+                        .position(x: min(max(progressPosition, dotSize), barWidth - dotSize), y: 0)
+                    }
+                }
+                .frame(height: dotSize)
+            }
+        }
+        .frame(height: 50) // Total height including numbers above
+    }
+    
+    // MARK: - Action Button (UPDATED LOGIC)
     private var actionButton: some View {
-        Button(action: onStartReading) {
+        Button(action: buttonAction) {
             HStack(spacing: 8) {
                 Image(systemName: buttonIcon)
                     .font(.system(size: 16, weight: .medium))
@@ -287,100 +406,78 @@ struct DailyBetRowView: View {
                     )
             )
         }
-        .disabled(progressStatus == .completed)
+        .disabled(buttonIsDisabled)
     }
     
-    // MARK: - Button styling based on status
-    private var buttonIcon: String {
-        if isDailyGoalCompleted && canGetAhead && nextDayNumber <= bet.totalDays {
-            return "arrow.right.circle.fill"
+    // UPDATED: Button action logic
+    private func buttonAction() {
+        if isPreviousCompletedDay {
+            // Do nothing - completed days are inactive
+            return
+        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
+            // Start next day
+            onStartNextDay?()
+        } else {
+            // Start reading for this day
+            onStartReading()
         }
-        
-        switch progressStatus {
-        case .completed:
+    }
+    
+    // UPDATED: Button styling based on state
+    private var buttonIcon: String {
+        if isPreviousCompletedDay {
             return "checkmark"
-        case .ahead:
-            return "star.fill"
-        case .behind, .overdue:
-            return "exclamationmark.triangle.fill"
-        case .onTrack:
+        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
+            return "arrow.right.circle.fill"
+        } else if canStartThisDay {
+            return "play.circle.fill"
+        } else {
             return "book.fill"
         }
     }
     
-    // FIXED: Button text for "Start Day X" functionality
     private var buttonText: String {
-        if isDailyGoalCompleted && canGetAhead && nextDayNumber <= bet.totalDays {
-            return "Start Day \(nextDayNumber)"
-        } else if isDailyGoalCompleted && nextDayNumber > bet.totalDays {
-            return "Goal Complete!"
-        }
-        
-        switch progressStatus {
-        case .completed:
+        if isPreviousCompletedDay {
             return "Completed"
-        case .ahead:
-            return canGetAhead ? "Get Ahead" : "Read More"
-        case .behind:
-            return "Catch Up"
-        case .overdue:
-            return "Urgent"
-        case .onTrack:
+        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
+            let nextDay = bet.dayNumber + 1
+            return nextDay <= bet.totalDays ? "Start Day \(nextDay)" : "All Days Complete"
+        } else if canStartThisDay {
+            return "Start Day \(bet.dayNumber)"
+        } else {
             return "Read"
         }
     }
     
     private var buttonTextColor: Color {
-        if isDailyGoalCompleted && canGetAhead {
-            return .white
-        }
-        
-        switch progressStatus {
-        case .completed:
+        if isPreviousCompletedDay {
             return .goodreadsAccent
-        case .ahead:
-            return .white
-        case .behind:
-            return .white
-        case .overdue:
-            return .white
-        case .onTrack:
+        } else {
             return .white
         }
     }
     
-    // FIXED: Button background color for daily goal completion
     private var buttonBackgroundColor: Color {
-        if isDailyGoalCompleted && canGetAhead && nextDayNumber <= bet.totalDays {
-            return Color.green
-        } else if isDailyGoalCompleted && nextDayNumber > bet.totalDays {
+        if isPreviousCompletedDay {
             return Color.goodreadsBeige.opacity(0.8)
-        }
-        
-        switch progressStatus {
-        case .completed:
-            return Color.goodreadsBeige.opacity(0.8)
-        case .ahead:
+        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
             return Color.blue
-        case .behind:
+        } else if canStartThisDay {
             return Color.orange
-        case .overdue:
-            return Color.red
-        case .onTrack:
+        } else {
             return Color.goodreadsBrown
         }
     }
     
     private var buttonBorderColor: Color {
-        if isDailyGoalCompleted && nextDayNumber > bet.totalDays {
+        if isPreviousCompletedDay {
             return Color.goodreadsAccent.opacity(0.3)
-        }
-        
-        switch progressStatus {
-        case .completed:
-            return Color.goodreadsAccent.opacity(0.3)
-        default:
+        } else {
             return Color.clear
         }
+    }
+    
+    private var buttonIsDisabled: Bool {
+        return isPreviousCompletedDay || progressStatus == .completed
     }
 }

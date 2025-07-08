@@ -4,6 +4,8 @@
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
+//  ReadingBet.swift - UPDATED EXISTING FILE
+//  Key changes: Made currentDay mutable to support day progression
 
 import SwiftUI
 import Foundation
@@ -20,6 +22,24 @@ struct ReadingBet: Identifiable, Hashable {
     // ADDED: Day tracking properties
     let startDate: Date
     let targetEndDate: Date
+    
+    // UPDATED: Made currentDay mutable and computed from start date
+    private var _currentDay: Int? = nil
+    
+    var currentDay: Int {
+        get {
+            if let overrideDay = _currentDay {
+                return overrideDay
+            }
+            // Calculate based on start date
+            let calendar = Calendar.current
+            let daysSinceStart = calendar.dateComponents([.day], from: startDate, to: Date()).day ?? 0
+            return min(max(daysSinceStart + 1, 1), totalDays)
+        }
+        set {
+            _currentDay = newValue
+        }
+    }
     
     // ADDED: Initialize with day tracking
     init(id: UUID = UUID(), book: Book, timeframe: String, odds: String, wager: Double, pagesPerDay: Int, totalDays: Int) {
@@ -44,13 +64,6 @@ struct ReadingBet: Identifiable, Hashable {
     
     var totalPayout: Double {
         return wager + potentialWin
-    }
-    
-    // ADDED: Current day calculation
-    var currentDay: Int {
-        let calendar = Calendar.current
-        let daysSinceStart = calendar.dateComponents([.day], from: startDate, to: Date()).day ?? 0
-        return min(max(daysSinceStart + 1, 1), totalDays)
     }
     
     // ADDED: Days remaining calculation
@@ -171,5 +184,12 @@ extension ReadingBet {
             }
         }
         return currentDay
+    }
+    
+    /// ADDED: Advance to next day
+    mutating func advanceToNextDay() {
+        if currentDay < totalDays {
+            _currentDay = currentDay + 1
+        }
     }
 }
