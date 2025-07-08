@@ -6,12 +6,23 @@
 //
 
 
+//
+//  CommentInputView.swift
+//  ReadLay
+//
+//  Created by Mateo Arratia on 6/15/25.
+//
+
+//  CommentInputView.swift - FIXED KEYBOARD DISMISSAL
+//  Key changes: Added keyboard toolbar + tap to dismiss + proper keyboard handling
+
 import SwiftUI
 
 struct CommentInputView: View {
     @ObservedObject var sessionViewModel: ReadingSessionViewModel
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var comment: String = ""
+    @FocusState private var isTextEditorFocused: Bool // Added focus state
     let book: Book
     let onComplete: () -> Void
     
@@ -23,6 +34,10 @@ struct CommentInputView: View {
         ZStack {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
+                .onTapGesture {
+                    // Tap outside to dismiss keyboard
+                    hideKeyboard()
+                }
             
             VStack(spacing: 24) {
                 headerSection
@@ -36,6 +51,20 @@ struct CommentInputView: View {
                     .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
             )
             .padding(.horizontal, 30)
+            .onTapGesture {
+                // Prevent dismissing when tapping on the content
+            }
+        }
+        // ADDED: Keyboard toolbar
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    hideKeyboard()
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.goodreadsBrown)
+            }
         }
     }
     
@@ -93,22 +122,42 @@ struct CommentInputView: View {
     
     private var commentInputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your Takeaway")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.goodreadsBrown)
+            HStack {
+                Text("Your Takeaway")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.goodreadsBrown)
+                
+                Spacer()
+                
+                // ADDED: Character count
+                Text("\(comment.count)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.goodreadsAccent.opacity(0.7))
+            }
             
+            // UPDATED: TextEditor with focus state and better keyboard handling
             TextEditor(text: $comment)
                 .font(.system(size: 16))
+                .focused($isTextEditorFocused) // Added focus binding
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.goodreadsBeige)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                                .stroke(
+                                    isTextEditorFocused ?
+                                        Color.goodreadsBrown.opacity(0.5) :
+                                        Color.goodreadsAccent.opacity(0.3),
+                                    lineWidth: isTextEditorFocused ? 2 : 1
+                                )
                         )
                 )
                 .frame(minHeight: 120)
+                .onTapGesture {
+                    // Focus the text editor when tapped
+                    isTextEditorFocused = true
+                }
             
             Text("Example: \"The author's point about daily habits really resonated with me...\"")
                 .font(.system(size: 12, weight: .medium))
@@ -120,6 +169,7 @@ struct CommentInputView: View {
     private var buttonsSection: some View {
         HStack(spacing: 16) {
             Button(action: {
+                hideKeyboard()
                 sessionViewModel.cancelSession()
             }) {
                 Text("Cancel")
@@ -137,7 +187,10 @@ struct CommentInputView: View {
                     )
             }
             
-            Button(action: saveComment) {
+            Button(action: {
+                hideKeyboard()
+                saveComment()
+            }) {
                 Text("Save & Complete")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
@@ -169,4 +222,12 @@ struct CommentInputView: View {
         
         onComplete()
     }
+    
+    // ADDED: Keyboard dismissal function
+    private func hideKeyboard() {
+        isTextEditorFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }
+
+

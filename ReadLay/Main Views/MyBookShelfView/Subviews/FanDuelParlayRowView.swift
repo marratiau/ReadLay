@@ -23,6 +23,11 @@ struct FanDuelParlayRowView: View {
     @State private var weekCount: Int = 1
     @State private var monthCount: Int = 1
     
+    // ADDED: Focus states for keyboard management
+    @FocusState private var dayFieldFocused: Bool
+    @FocusState private var weekFieldFocused: Bool
+    @FocusState private var monthFieldFocused: Bool
+    
     // ADDED: Check if book has active bets
     private var hasActiveBets: Bool {
         return readSlipViewModel.hasActiveBets(for: book.id)
@@ -34,6 +39,11 @@ struct FanDuelParlayRowView: View {
     
     private var activeEngagementBet: EngagementBet? {
         return readSlipViewModel.getActiveEngagementBet(for: book.id)
+    }
+    
+    // ADDED: Check if any field is focused
+    private var isAnyFieldFocused: Bool {
+        return dayFieldFocused || weekFieldFocused || monthFieldFocused
     }
 
     var body: some View {
@@ -61,6 +71,23 @@ struct FanDuelParlayRowView: View {
             weekText = String(weekCount)
             monthText = String(monthCount)
         }
+        // ADDED: Tap outside to dismiss keyboard
+        .onTapGesture {
+            if isAnyFieldFocused {
+                hideKeyboard()
+            }
+        }
+        // ADDED: Keyboard toolbar
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    hideKeyboard()
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.goodreadsBrown)
+            }
+        }
     }
     
     // MARK: - Book Cover
@@ -80,6 +107,9 @@ struct FanDuelParlayRowView: View {
             } else {
                 defaultCoverView
             }
+        }
+        .onTapGesture {
+            // Don't dismiss keyboard when tapping book cover
         }
     }
     
@@ -138,6 +168,9 @@ struct FanDuelParlayRowView: View {
             }
         }
         .frame(maxWidth: 120, alignment: .leading)
+        .onTapGesture {
+            // Don't dismiss keyboard when tapping book details
+        }
     }
     
     // MARK: - Book In Progress View (NEW)
@@ -196,6 +229,7 @@ struct FanDuelParlayRowView: View {
                     )
                 
                 Button(action: {
+                    hideKeyboard() // Dismiss keyboard before navigation
                     onNavigateToActiveBets?()
                 }) {
                     Text("View Bet")
@@ -214,14 +248,18 @@ struct FanDuelParlayRowView: View {
                 }
             }
         }
+        .onTapGesture {
+            // Don't dismiss keyboard when tapping progress view
+        }
     }
     
-    // MARK: - Custom Odds Section (Original)
+    // MARK: - Custom Odds Section (UPDATED WITH KEYBOARD HANDLING)
     private var customOddsSection: some View {
         HStack(spacing: 6) {
             // Days
             timeframeColumn(
                 textBinding: $dayText,
+                focusState: $dayFieldFocused,
                 count: dayCount,
                 unit: dayCount == 1 ? "day" : "days",
                 totalDays: dayCount,
@@ -231,6 +269,7 @@ struct FanDuelParlayRowView: View {
             // Weeks
             timeframeColumn(
                 textBinding: $weekText,
+                focusState: $weekFieldFocused,
                 count: weekCount,
                 unit: weekCount == 1 ? "week" : "weeks",
                 totalDays: weekCount * 7,
@@ -240,33 +279,55 @@ struct FanDuelParlayRowView: View {
             // Months
             timeframeColumn(
                 textBinding: $monthText,
+                focusState: $monthFieldFocused,
                 count: monthCount,
                 unit: monthCount == 1 ? "month" : "months",
                 totalDays: monthCount * 30,
                 index: 2
             )
         }
+        .onTapGesture {
+            // Don't dismiss keyboard when tapping odds section
+        }
     }
     
-    private func timeframeColumn(textBinding: Binding<String>, count: Int, unit: String, totalDays: Int, index: Int) -> some View {
+    // UPDATED: Added focus state parameter
+    private func timeframeColumn(
+        textBinding: Binding<String>,
+        focusState: FocusState<Bool>.Binding,
+        count: Int,
+        unit: String,
+        totalDays: Int,
+        index: Int
+    ) -> some View {
         VStack(spacing: 3) {
-            // Text input for number
+            // UPDATED: Text input with focus state
             TextField("1", text: textBinding)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
                 .multilineTextAlignment(.center)
                 .keyboardType(.numberPad)
+                .focused(focusState) // Added focus binding
                 .frame(width: 20, height: 16)
                 .background(
                     RoundedRectangle(cornerRadius: 3)
                         .fill(Color.goodreadsBeige.opacity(0.8))
                         .overlay(
                             RoundedRectangle(cornerRadius: 3)
-                                .stroke(Color.goodreadsAccent.opacity(0.4), lineWidth: 0.5)
+                                .stroke(
+                                    focusState.wrappedValue ?
+                                        Color.goodreadsBrown.opacity(0.7) :
+                                        Color.goodreadsAccent.opacity(0.4),
+                                    lineWidth: focusState.wrappedValue ? 1.5 : 0.5
+                                )
                         )
                 )
                 .onChange(of: textBinding.wrappedValue) { newValue in
                     updateCount(newValue, for: index)
+                }
+                .onTapGesture {
+                    // Focus this field when tapped
+                    focusState.wrappedValue = true
                 }
             
             // Unit label
@@ -276,8 +337,10 @@ struct FanDuelParlayRowView: View {
                 .textCase(.uppercase)
                 .lineLimit(1)
             
-            // Odds button
+            // UPDATED: Odds button dismisses keyboard before action
             Button(action: {
+                hideKeyboard() // Dismiss keyboard first
+                
                 let odds = calculateOdds(totalDays: totalDays)
                 let timeframe = formatTimeframe(count: count, unit: unit)
                 
@@ -308,7 +371,10 @@ struct FanDuelParlayRowView: View {
     }
     
     private var closeButton: some View {
-        Button(action: onClose) {
+        Button(action: {
+            hideKeyboard() // Dismiss keyboard before closing
+            onClose()
+        }) {
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 18))
                 .foregroundColor(.goodreadsAccent.opacity(0.6))
@@ -331,6 +397,14 @@ struct FanDuelParlayRowView: View {
     }
     
     // MARK: - Helper Methods
+    
+    // ADDED: Keyboard dismissal function
+    private func hideKeyboard() {
+        dayFieldFocused = false
+        weekFieldFocused = false
+        monthFieldFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
     
     private func updateCount(_ text: String, for index: Int) {
         // Filter to numbers only
