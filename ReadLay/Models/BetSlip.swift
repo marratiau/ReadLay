@@ -4,6 +4,7 @@
 //
 //  Created by Mateo Arratia on 6/10/25.
 //
+
 import SwiftUI
 
 struct BetSlip {
@@ -37,8 +38,8 @@ struct BetSlip {
         let totalDays = calculateDays(from: timeframe)
         let pagesPerDay = Int(ceil(Double(book.totalPages) / Double(totalDays)))
         
+        // UPDATED: Use the new ReadingBet initializer with day tracking
         let newBet = ReadingBet(
-            id: UUID(),
             book: book,
             timeframe: timeframe,
             odds: odds,

@@ -49,8 +49,135 @@ class ReadSlipViewModel: ObservableObject {
         currentBalance = 10.0
     }
     
+    // MARK: - Book Protection Logic
+    
+    /// Check if a book already has an active reading bet
+    func hasActiveReadingBet(for bookId: UUID) -> Bool {
+        return placedBets.contains { $0.book.id == bookId }
+    }
+    
+    /// Check if a book already has an active engagement bet
+    func hasActiveEngagementBet(for bookId: UUID) -> Bool {
+        return placedEngagementBets.contains { $0.book.id == bookId }
+    }
+    
+    /// Check if a book has any active bets
+    func hasActiveBets(for bookId: UUID) -> Bool {
+        return hasActiveReadingBet(for: bookId) || hasActiveEngagementBet(for: bookId)
+    }
+    
+    /// Get the active reading bet for a book
+    func getActiveReadingBet(for bookId: UUID) -> ReadingBet? {
+        return placedBets.first { $0.book.id == bookId }
+    }
+    
+    /// Get the active engagement bet for a book
+    func getActiveEngagementBet(for bookId: UUID) -> EngagementBet? {
+        return placedEngagementBets.first { $0.book.id == bookId }
+    }
+    
+    /// Get all active bets for a book
+    func getActiveBets(for bookId: UUID) -> (readingBet: ReadingBet?, engagementBet: EngagementBet?) {
+        return (getActiveReadingBet(for: bookId), getActiveEngagementBet(for: bookId))
+    }
+    
+    // MARK: - Enhanced Day Tracking
+    
+    /// Get progress status for a reading bet
+    func getProgressStatus(for betId: UUID) -> ReadingBet.ProgressStatus {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else { return .onTrack }
+        let actualProgress = getTotalProgress(for: betId)
+        return bet.getProgressStatus(actualProgress: actualProgress)
+    }
+    
+    /// Check if user can work on next day's goal (get ahead functionality)
+    func canGetAhead(for betId: UUID) -> Bool {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
+        let actualProgress = getTotalProgress(for: betId)
+        let currentDayTarget = bet.expectedPagesToday
+        
+        // Can get ahead if current day's goal is completed and not on final day
+        return actualProgress >= currentDayTarget && bet.currentDay < bet.totalDays
+    }
+    
+    /// Get next available day to work on
+    func getNextAvailableDay(for betId: UUID) -> Int {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else { return 1 }
+        let actualProgress = getTotalProgress(for: betId)
+        return bet.getNextAvailableDay(actualProgress: actualProgress)
+    }
+    
+    /// Check if daily goal is completed for a specific day
+    func isDailyGoalCompleted(for betId: UUID, day: Int) -> Bool {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
+        let actualProgress = getTotalProgress(for: betId)
+        let targetProgress = bet.expectedPagesByDay(day)
+        return actualProgress >= targetProgress
+    }
+    
+    /// Check if user is behind schedule
+    func isBehindSchedule(for betId: UUID) -> Bool {
+        return getProgressStatus(for: betId) == .behind
+    }
+    
+    /// Check if user is ahead of schedule
+    func isAheadOfSchedule(for betId: UUID) -> Bool {
+        return getProgressStatus(for: betId) == .ahead
+    }
+    
+    /// Get detailed progress info for a bet
+    func getProgressInfo(for betId: UUID) -> (actual: Int, expected: Int, status: ReadingBet.ProgressStatus) {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else {
+            return (0, 0, .onTrack)
+        }
+        
+        let actualProgress = getTotalProgress(for: betId)
+        let expectedProgress = bet.expectedPagesToday
+        let status = bet.getProgressStatus(actualProgress: actualProgress)
+        
+        return (actualProgress, expectedProgress, status)
+    }
+    
+    // MARK: - Day Management
+    
+    /// ADDED: Start next day for a bet (advance to work on next day's goal)
+    func startNextDay(for betId: UUID) {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else {
+            print("DEBUG: No bet found with ID \(betId)")
+            return
+        }
+        
+        // Check if can advance to next day
+        guard bet.currentDay < bet.totalDays else {
+            print("DEBUG: Already on final day for bet \(betId)")
+            return
+        }
+        
+        // Check if current day goal is completed
+        let currentProgress = getTotalProgress(for: betId)
+        let currentDayTarget = bet.pagesPerDay * bet.currentDay
+        
+        guard currentProgress >= currentDayTarget else {
+            print("DEBUG: Current day goal not completed, cannot advance to next day")
+            return
+        }
+        
+        // Reset daily progress to start fresh for the new day
+        // The user can now work on the next day's goal
+        resetDailyProgress(for: betId)
+        
+        print("DEBUG: Reset daily progress for bet \(betId) - user can now work on day \(bet.currentDay + 1)")
+        objectWillChange.send()
+    }
+    
     // MARK: - Reading Bets
     func addBet(book: Book, timeframe: String, odds: String) {
+        // ADDED: Check if book already has active bets
+        guard !hasActiveBets(for: book.id) else {
+            print("Book already has active bets - cannot place new bet")
+            return
+        }
+        
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             betSlip.addReadingBet(book: book, timeframe: timeframe, odds: odds)
         }
@@ -70,6 +197,12 @@ class ReadSlipViewModel: ObservableObject {
     
     // MARK: - Engagement Bets
     func addEngagementBet(book: Book, goals: [EngagementGoal], odds: String) {
+        // ADDED: Check if book already has active engagement bet
+        guard !hasActiveEngagementBet(for: book.id) else {
+            print("Book already has active engagement bet - cannot place new bet")
+            return
+        }
+        
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             betSlip.addEngagementBet(book: book, goals: goals, odds: odds)
         }
@@ -284,10 +417,18 @@ class ReadSlipViewModel: ObservableObject {
         }
     }
     
+    // ADDED: Manual daily progress reset (for testing or day changes)
     func resetDailyProgress() {
         for betId in dailyProgress.keys {
             dailyProgress[betId] = 0
         }
+        objectWillChange.send()
+    }
+    
+    // ADDED: Reset daily progress for specific bet
+    func resetDailyProgress(for betId: UUID) {
+        dailyProgress[betId] = 0
+        objectWillChange.send()
     }
     
     // MARK: - Data Helpers

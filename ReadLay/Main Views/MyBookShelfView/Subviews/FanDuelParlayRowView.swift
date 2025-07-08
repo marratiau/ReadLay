@@ -1,5 +1,5 @@
 //
-//  FanDuelParlayRowView 2.swift
+//  FanDuelParlayRowView.swift
 //  ReadLay
 //
 //  Created by Mateo Arratia on 6/4/25.
@@ -10,6 +10,7 @@ import SwiftUI
 struct FanDuelParlayRowView: View {
     let book: Book
     var onClose: () -> Void
+    var onNavigateToActiveBets: (() -> Void)? // ADDED: Navigation callback
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var selectedOdds: String? = nil
     
@@ -21,13 +22,34 @@ struct FanDuelParlayRowView: View {
     @State private var dayCount: Int = 1
     @State private var weekCount: Int = 1
     @State private var monthCount: Int = 1
+    
+    // ADDED: Check if book has active bets
+    private var hasActiveBets: Bool {
+        return readSlipViewModel.hasActiveBets(for: book.id)
+    }
+    
+    private var activeReadingBet: ReadingBet? {
+        return readSlipViewModel.getActiveReadingBet(for: book.id)
+    }
+    
+    private var activeEngagementBet: EngagementBet? {
+        return readSlipViewModel.getActiveEngagementBet(for: book.id)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             bookCoverView
-            bookDetailsView
-            Spacer()
-            customOddsSection
+            
+            if hasActiveBets {
+                // ADDED: Show active bet state instead of odds
+                bookInProgressView
+            } else {
+                // Original odds selection view
+                bookDetailsView
+                Spacer()
+                customOddsSection
+            }
+            
             closeButton
         }
         .padding(.horizontal, 14)
@@ -89,7 +111,7 @@ struct FanDuelParlayRowView: View {
             .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
     }
     
-    // MARK: - Book Details
+    // MARK: - Book Details (Original)
     private var bookDetailsView: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(book.title)
@@ -118,7 +140,83 @@ struct FanDuelParlayRowView: View {
         .frame(maxWidth: 120, alignment: .leading)
     }
     
-    // MARK: - Custom Odds Section
+    // MARK: - Book In Progress View (NEW)
+    private var bookInProgressView: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(book.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.goodreadsBrown)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                
+                if let author = book.author {
+                    Text(author)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.goodreadsAccent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                }
+                
+                // Show active bet info
+                if let readingBet = activeReadingBet {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(.blue)
+                        Text(readingBet.formattedTimeRemaining)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.blue)
+                    }
+                } else if activeEngagementBet != nil {
+                    HStack(spacing: 4) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 8))
+                            .foregroundColor(.green)
+                        Text("Engagement Goals")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+            .frame(maxWidth: 120, alignment: .leading)
+            
+            Spacer()
+            
+            // Progress indicator and action button
+            VStack(spacing: 4) {
+                Text("IN PROGRESS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.blue)
+                    )
+                
+                Button(action: {
+                    onNavigateToActiveBets?()
+                }) {
+                    Text("View Bet")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.goodreadsBrown)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.goodreadsBeige)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                }
+            }
+        }
+    }
+    
+    // MARK: - Custom Odds Section (Original)
     private var customOddsSection: some View {
         HStack(spacing: 6) {
             // Days
@@ -221,10 +319,13 @@ struct FanDuelParlayRowView: View {
     
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(Color.goodreadsWarm)
+            .fill(hasActiveBets ? Color.blue.opacity(0.1) : Color.goodreadsWarm)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.goodreadsAccent.opacity(0.2), lineWidth: 1)
+                    .stroke(
+                        hasActiveBets ? Color.blue.opacity(0.3) : Color.goodreadsAccent.opacity(0.2),
+                        lineWidth: hasActiveBets ? 2 : 1
+                    )
             )
             .shadow(color: Color.goodreadsBrown.opacity(0.15), radius: 8, x: 0, y: 4)
     }

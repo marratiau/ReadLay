@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 7/2/25.
 //
 
-
 import SwiftUI
 
 struct EndingPageInputView: View {
@@ -151,11 +150,17 @@ struct EndingPageInputView: View {
             }
             
             Button(action: {
-                // IMPROVED: Use ViewModel's validation logic
-                sessionViewModel.finishReading()
-                if sessionViewModel.validationError == nil,
+                // FIXED: Simplified completion flow
+                if sessionViewModel.isValidEndingInput,
                    let endingPage = Int(sessionViewModel.endingPageText) {
+                    
+                    // First complete the session locally
+                    sessionViewModel.finishReading()
+                    
+                    // Then call the completion callback
                     onComplete(endingPage)
+                    
+                    // The session will be processed by the calling view
                 }
             }) {
                 Text("Done")

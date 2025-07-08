@@ -1,9 +1,10 @@
 //
-//  ContentView.swift
+//  MyBookshelfView.swift
 //  ReadLay
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
+
 import SwiftUI
 
 struct MyBookshelfView: View {
@@ -11,6 +12,7 @@ struct MyBookshelfView: View {
     @State private var selectedBook: Book? = nil
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var showingBookSearch = false
+    @State private var shouldNavigateToActiveBets = false // ADDED: Navigation state
     
     init(readSlipViewModel: ReadSlipViewModel) {
         self.readSlipViewModel = readSlipViewModel
@@ -34,6 +36,10 @@ struct MyBookshelfView: View {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 selectedBook = nil
             }
+        }
+        // ADDED: Navigation observer
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToActiveBets"))) { _ in
+            shouldNavigateToActiveBets = true
         }
     }
     
@@ -226,6 +232,15 @@ struct MyBookshelfView: View {
                     selectedBook = nil
                 }
             },
+            onNavigateToActiveBets: {
+                // ADDED: Navigation to active bets
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToActiveBets"), object: nil)
+                
+                // Close the selected book
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    selectedBook = nil
+                }
+            },
             readSlipViewModel: readSlipViewModel
         )
         .transition(
@@ -324,4 +339,3 @@ struct MyBookshelfView: View {
 #Preview {
     MyBookshelfView(readSlipViewModel: ReadSlipViewModel())
 }
-
