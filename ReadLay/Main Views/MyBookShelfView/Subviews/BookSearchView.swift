@@ -4,7 +4,8 @@
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
-
+//  BookSearchView.swift - UPDATED WITH ISBN LOOKUP
+//  Enhanced with ISBN scanning and lookup functionality
 
 import SwiftUI
 
@@ -16,6 +17,7 @@ struct BookSearchView: View {
     @State private var isSearching = false
     @State private var hasSearched = false
     @State private var showingManualEntry = false
+    @State private var showingISBNLookup = false // ADDED: ISBN lookup state
     let onBookSelected: (Book) -> Void
     
     private var allResults: [SearchResult] {
@@ -34,7 +36,7 @@ struct BookSearchView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                searchBarSection
+                enhancedSearchBarSection // UPDATED: Enhanced search bar with ISBN option
                 contentSection
             }
             .background(backgroundGradient)
@@ -63,43 +65,100 @@ struct BookSearchView: View {
                 dismiss()
             }
         }
+        // ADDED: ISBN lookup sheet
+        .sheet(isPresented: $showingISBNLookup) {
+            ISBNLookupView { book in
+                onBookSelected(book)
+                dismiss()
+            }
+        }
     }
     
-    private var searchBarSection: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.goodreadsAccent)
-                .font(.system(size: 16, weight: .medium))
-            
-            TextField("Search for books...", text: $searchText)
-                .font(.system(size: 16))
-                .foregroundColor(.goodreadsBrown)
-                .onSubmit {
-                    searchBooks()
+    // UPDATED: Enhanced search bar with ISBN option
+    private var enhancedSearchBarSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.goodreadsAccent)
+                    .font(.system(size: 16, weight: .medium))
+                
+                TextField("Search for books...", text: $searchText)
+                    .font(.system(size: 16))
+                    .foregroundColor(.goodreadsBrown)
+                    .onSubmit {
+                        searchBooks()
+                    }
+                
+                if !searchText.isEmpty {
+                    Button(action: {
+                        searchText = ""
+                        openLibraryResults = []
+                        googleBooksResults = []
+                        hasSearched = false
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.goodreadsAccent.opacity(0.6))
+                    }
                 }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.goodreadsBeige)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                    )
+            )
             
-            if !searchText.isEmpty {
+            // ADDED: Search options
+            HStack(spacing: 8) {
                 Button(action: {
-                    searchText = ""
-                    openLibraryResults = []
-                    googleBooksResults = []
-                    hasSearched = false
+                    showingISBNLookup = true
                 }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.goodreadsAccent.opacity(0.6))
+                    HStack(spacing: 6) {
+                        Image(systemName: "barcode.viewfinder")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("ISBN Lookup")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.goodreadsBrown)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.goodreadsWarm)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                            )
+                    )
+                }
+                
+                Button(action: {
+                    showingManualEntry = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Manual Entry")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.goodreadsBrown)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.goodreadsWarm)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                            )
+                    )
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.goodreadsBeige)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
-                )
-        )
         .padding(.horizontal, 20)
         .padding(.top, 16)
     }
@@ -113,7 +172,7 @@ struct BookSearchView: View {
         } else if !allResults.isEmpty {
             resultsView
         } else {
-            emptyStateView
+            enhancedEmptyStateView // UPDATED: Enhanced empty state
         }
     }
     
@@ -138,27 +197,47 @@ struct BookSearchView: View {
             Text("No books found")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-            Text("Try a different search or use Manual Entry")
+            Text("Try a different search, use ISBN lookup, or manual entry")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.goodreadsAccent)
                 .multilineTextAlignment(.center)
             
-            Button(action: {
-                showingManualEntry = true
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 16, weight: .medium))
-                    Text("Manual Entry")
-                        .font(.system(size: 16, weight: .semibold))
+            HStack(spacing: 12) {
+                Button(action: {
+                    showingISBNLookup = true
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "barcode.viewfinder")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("ISBN Lookup")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.goodreadsBrown)
+                    )
                 }
-                .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.goodreadsBrown)
-                )
+                
+                Button(action: {
+                    showingManualEntry = true
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Manual Entry")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.goodreadsBrown)
+                    )
+                }
             }
             Spacer()
         }
@@ -184,19 +263,55 @@ struct BookSearchView: View {
         }
     }
     
-    private var emptyStateView: some View {
-        VStack(spacing: 16) {
+    // UPDATED: Enhanced empty state with search options
+    private var enhancedEmptyStateView: some View {
+        VStack(spacing: 24) {
             Spacer()
+            
             Image(systemName: "text.magnifyingglass")
                 .font(.system(size: 48))
                 .foregroundColor(.goodreadsAccent.opacity(0.5))
-            Text("Search for Books")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.goodreadsBrown)
-            Text("Search multiple databases or add books manually")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.goodreadsAccent)
-                .multilineTextAlignment(.center)
+            
+            VStack(spacing: 8) {
+                Text("Find Your Books")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.goodreadsBrown)
+                
+                Text("Search by title, author, or find exact editions with ISBN")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.goodreadsAccent)
+                    .multilineTextAlignment(.center)
+            }
+            
+            VStack(spacing: 16) {
+                Text("Search Options:")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.goodreadsBrown)
+                
+                VStack(spacing: 12) {
+                    SearchOptionCard(
+                        icon: "magnifyingglass",
+                        title: "Title/Author Search",
+                        description: "Search across multiple book databases",
+                        color: .blue
+                    )
+                    
+                    SearchOptionCard(
+                        icon: "barcode.viewfinder",
+                        title: "ISBN Lookup",
+                        description: "Find exact edition by scanning or entering ISBN",
+                        color: .green
+                    )
+                    
+                    SearchOptionCard(
+                        icon: "plus.circle",
+                        title: "Manual Entry",
+                        description: "Add any book with custom details",
+                        color: .orange
+                    )
+                }
+            }
+            
             Spacer()
         }
         .padding(.horizontal, 24)
@@ -254,6 +369,48 @@ struct BookSearchView: View {
         }
     }
 }
+
+// MARK: - Search Option Card
+struct SearchOptionCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(color)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.goodreadsBrown)
+                
+                Text(description)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.goodreadsAccent)
+                    .multilineTextAlignment(.leading)
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(color.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// Keep existing SearchResult, SearchResultRowView, and extension implementations...
 
 // MARK: - Search Result Types
 enum SearchResult: Identifiable {

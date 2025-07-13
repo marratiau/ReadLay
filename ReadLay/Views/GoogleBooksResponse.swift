@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 6/4/25.
 //
 
-
 import Foundation
 
 struct GoogleBooksResponse: Codable {
@@ -50,5 +49,22 @@ class GoogleBooksAPI: ObservableObject {
         let response = try JSONDecoder().decode(GoogleBooksResponse.self, from: data)
         
         return response.items ?? []
+    }
+    
+    // MARK: - ISBN Search Method
+    func searchByISBN(isbn: String) async throws -> GoogleBook? {
+        let cleanedISBN = isbn.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: " ", with: "")
+        guard !cleanedISBN.isEmpty else { return nil }
+        
+        let urlString = "\(baseURL)?q=isbn:\(cleanedISBN)"
+        
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(GoogleBooksResponse.self, from: data)
+        
+        return response.items?.first
     }
 }

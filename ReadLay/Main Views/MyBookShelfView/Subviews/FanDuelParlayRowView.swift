@@ -4,17 +4,23 @@
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
+//  FanDuelParlayRowView.swift - UPDATED WITH READING PREFERENCES
+//  Key changes: Added reading preferences setup before betting
 
 import SwiftUI
 
 struct FanDuelParlayRowView: View {
     let book: Book
     var onClose: () -> Void
-    var onNavigateToActiveBets: (() -> Void)? // ADDED: Navigation callback
+    var onNavigateToActiveBets: (() -> Void)?
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var selectedOdds: String? = nil
     
-    // ADDED: State for custom timeframes
+    // ADDED: Reading preferences state
+    @State private var showingReadingPreferences = false
+    @State private var currentBook: Book // Make book mutable for preferences
+    
+    // Custom timeframe state
     @State private var dayText: String = "1"
     @State private var weekText: String = "1"
     @State private var monthText: String = "1"
@@ -23,25 +29,31 @@ struct FanDuelParlayRowView: View {
     @State private var weekCount: Int = 1
     @State private var monthCount: Int = 1
     
-    // ADDED: Focus states for keyboard management
     @FocusState private var dayFieldFocused: Bool
     @FocusState private var weekFieldFocused: Bool
     @FocusState private var monthFieldFocused: Bool
     
-    // ADDED: Check if book has active bets
+    // Initialize with mutable book
+    init(book: Book, onClose: @escaping () -> Void, onNavigateToActiveBets: (() -> Void)? = nil, readSlipViewModel: ReadSlipViewModel) {
+        self.book = book
+        self._currentBook = State(initialValue: book)
+        self.onClose = onClose
+        self.onNavigateToActiveBets = onNavigateToActiveBets
+        self.readSlipViewModel = readSlipViewModel
+    }
+    
     private var hasActiveBets: Bool {
-        return readSlipViewModel.hasActiveBets(for: book.id)
+        return readSlipViewModel.hasActiveBets(for: currentBook.id)
     }
     
     private var activeReadingBet: ReadingBet? {
-        return readSlipViewModel.getActiveReadingBet(for: book.id)
+        return readSlipViewModel.getActiveReadingBet(for: currentBook.id)
     }
     
     private var activeEngagementBet: EngagementBet? {
-        return readSlipViewModel.getActiveEngagementBet(for: book.id)
+        return readSlipViewModel.getActiveEngagementBet(for: currentBook.id)
     }
     
-    // ADDED: Check if any field is focused
     private var isAnyFieldFocused: Bool {
         return dayFieldFocused || weekFieldFocused || monthFieldFocused
     }
@@ -51,13 +63,19 @@ struct FanDuelParlayRowView: View {
             bookCoverView
             
             if hasActiveBets {
-                // ADDED: Show active bet state instead of odds
                 bookInProgressView
             } else {
-                // Original odds selection view
-                bookDetailsView
-                Spacer()
-                customOddsSection
+                VStack(spacing: 8) {
+                    bookDetailsView
+                    
+                    // ADDED: Reading preferences summary and setup button
+                    if currentBook.hasCustomReadingPreferences {
+                        readingPreferencesSummary
+                    }
+                    
+                    Spacer()
+                    customOddsSection
+                }
             }
             
             closeButton
@@ -65,19 +83,17 @@ struct FanDuelParlayRowView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(cardBackground)
-        .frame(height: 72)
+        .frame(height: hasActiveBets ? 72 : (currentBook.hasCustomReadingPreferences ? 120 : 72))
         .onAppear {
             dayText = String(dayCount)
             weekText = String(weekCount)
             monthText = String(monthCount)
         }
-        // ADDED: Tap outside to dismiss keyboard
         .onTapGesture {
             if isAnyFieldFocused {
                 hideKeyboard()
             }
         }
-        // ADDED: Keyboard toolbar
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -88,12 +104,15 @@ struct FanDuelParlayRowView: View {
                 .foregroundColor(.goodreadsBrown)
             }
         }
+        .sheet(isPresented: $showingReadingPreferences) {
+            QuickPageSetupView(book: $currentBook)
+        }
     }
     
-    // MARK: - Book Cover
+    // MARK: - Book Cover (unchanged)
     private var bookCoverView: some View {
         Group {
-            if let coverURL = book.coverImageURL, let url = URL(string: coverURL) {
+            if let coverURL = currentBook.coverImageURL, let url = URL(string: coverURL) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -115,7 +134,7 @@ struct FanDuelParlayRowView: View {
     
     private var coverPlaceholder: some View {
         RoundedRectangle(cornerRadius: 6)
-            .fill(book.spineColor.opacity(0.8))
+            .fill(currentBook.spineColor.opacity(0.8))
             .overlay(
                 ProgressView()
                     .scaleEffect(0.8)
@@ -125,14 +144,14 @@ struct FanDuelParlayRowView: View {
     
     private var defaultCoverView: some View {
         RoundedRectangle(cornerRadius: 6)
-            .fill(book.spineColor.opacity(0.8))
+            .fill(currentBook.spineColor.opacity(0.8))
             .frame(width: 40, height: 60)
             .overlay(
                 VStack(spacing: 2) {
                     Image(systemName: "book.closed.fill")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.9))
-                    Text(book.title.prefix(1))
+                    Text(currentBook.title.prefix(1))
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -141,16 +160,30 @@ struct FanDuelParlayRowView: View {
             .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
     }
     
-    // MARK: - Book Details (Original)
+    // MARK: - Book Details (updated to use currentBook)
     private var bookDetailsView: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(book.title)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.goodreadsBrown)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
+            HStack {
+                Text(currentBook.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.goodreadsBrown)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                
+                // ADDED: Setup button
+                Spacer()
+                
+                Button(action: {
+                    hideKeyboard()
+                    showingReadingPreferences = true
+                }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.goodreadsAccent)
+                }
+            }
             
-            if let author = book.author {
+            if let author = currentBook.author {
                 Text(author)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
@@ -162,7 +195,7 @@ struct FanDuelParlayRowView: View {
                 Image(systemName: "doc.text")
                     .font(.system(size: 9))
                     .foregroundColor(.goodreadsAccent.opacity(0.8))
-                Text("\(book.totalPages) pages")
+                Text("\(currentBook.effectiveTotalPages) pages") // UPDATED: Use effective pages
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.goodreadsAccent.opacity(0.8))
             }
@@ -173,17 +206,51 @@ struct FanDuelParlayRowView: View {
         }
     }
     
-    // MARK: - Book In Progress View (NEW)
+    // ADDED: Reading preferences summary
+    private var readingPreferencesSummary: some View {
+        Button(action: {
+            hideKeyboard()
+            showingReadingPreferences = true
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: currentBook.readingPreferences.pageCountingStyle.icon)
+                    .font(.system(size: 8))
+                    .foregroundColor(.blue)
+                
+                Text(currentBook.readingPreferenceSummary)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.blue)
+                    .lineLimit(1)
+                
+                Image(systemName: "pencil")
+                    .font(.system(size: 8))
+                    .foregroundColor(.blue.opacity(0.7))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.blue.opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.blue.opacity(0.3), lineWidth: 0.5)
+                    )
+            )
+        }
+        .frame(maxWidth: 120, alignment: .leading)
+    }
+    
+    // MARK: - Book In Progress View (updated to use currentBook)
     private var bookInProgressView: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(book.title)
+                Text(currentBook.title)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.goodreadsBrown)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 
-                if let author = book.author {
+                if let author = currentBook.author {
                     Text(author)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.goodreadsAccent)
@@ -191,7 +258,6 @@ struct FanDuelParlayRowView: View {
                         .minimumScaleFactor(0.9)
                 }
                 
-                // Show active bet info
                 if let readingBet = activeReadingBet {
                     HStack(spacing: 4) {
                         Image(systemName: "clock.fill")
@@ -216,7 +282,6 @@ struct FanDuelParlayRowView: View {
             
             Spacer()
             
-            // Progress indicator and action button
             VStack(spacing: 4) {
                 Text("IN PROGRESS")
                     .font(.system(size: 10, weight: .bold))
@@ -229,7 +294,7 @@ struct FanDuelParlayRowView: View {
                     )
                 
                 Button(action: {
-                    hideKeyboard() // Dismiss keyboard before navigation
+                    hideKeyboard()
                     onNavigateToActiveBets?()
                 }) {
                     Text("View Bet")
@@ -253,10 +318,9 @@ struct FanDuelParlayRowView: View {
         }
     }
     
-    // MARK: - Custom Odds Section (UPDATED WITH KEYBOARD HANDLING)
+    // MARK: - Custom Odds Section (updated to use effective pages for calculations)
     private var customOddsSection: some View {
         HStack(spacing: 6) {
-            // Days
             timeframeColumn(
                 textBinding: $dayText,
                 focusState: $dayFieldFocused,
@@ -266,7 +330,6 @@ struct FanDuelParlayRowView: View {
                 index: 0
             )
             
-            // Weeks
             timeframeColumn(
                 textBinding: $weekText,
                 focusState: $weekFieldFocused,
@@ -276,7 +339,6 @@ struct FanDuelParlayRowView: View {
                 index: 1
             )
             
-            // Months
             timeframeColumn(
                 textBinding: $monthText,
                 focusState: $monthFieldFocused,
@@ -291,7 +353,6 @@ struct FanDuelParlayRowView: View {
         }
     }
     
-    // UPDATED: Added focus state parameter
     private func timeframeColumn(
         textBinding: Binding<String>,
         focusState: FocusState<Bool>.Binding,
@@ -301,13 +362,12 @@ struct FanDuelParlayRowView: View {
         index: Int
     ) -> some View {
         VStack(spacing: 3) {
-            // UPDATED: Text input with focus state
             TextField("1", text: textBinding)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
                 .multilineTextAlignment(.center)
                 .keyboardType(.numberPad)
-                .focused(focusState) // Added focus binding
+                .focused(focusState)
                 .frame(width: 20, height: 16)
                 .background(
                     RoundedRectangle(cornerRadius: 3)
@@ -326,27 +386,25 @@ struct FanDuelParlayRowView: View {
                     updateCount(newValue, for: index)
                 }
                 .onTapGesture {
-                    // Focus this field when tapped
                     focusState.wrappedValue = true
                 }
             
-            // Unit label
             Text(unit)
                 .font(.system(size: 7, weight: .semibold))
                 .foregroundColor(.goodreadsAccent.opacity(0.7))
                 .textCase(.uppercase)
                 .lineLimit(1)
             
-            // UPDATED: Odds button dismisses keyboard before action
             Button(action: {
-                hideKeyboard() // Dismiss keyboard first
+                hideKeyboard()
                 
                 let odds = calculateOdds(totalDays: totalDays)
                 let timeframe = formatTimeframe(count: count, unit: unit)
                 
                 withAnimation(.easeInOut(duration: 0.15)) {
                     selectedOdds = selectedOdds == odds ? nil : odds
-                    readSlipViewModel.addBet(book: book, timeframe: timeframe, odds: odds)
+                    // UPDATED: Pass currentBook with preferences
+                    readSlipViewModel.addBet(book: currentBook, timeframe: timeframe, odds: odds)
                 }
             }) {
                 Text(calculateOdds(totalDays: totalDays))
@@ -372,7 +430,7 @@ struct FanDuelParlayRowView: View {
     
     private var closeButton: some View {
         Button(action: {
-            hideKeyboard() // Dismiss keyboard before closing
+            hideKeyboard()
             onClose()
         }) {
             Image(systemName: "xmark.circle.fill")
@@ -398,7 +456,6 @@ struct FanDuelParlayRowView: View {
     
     // MARK: - Helper Methods
     
-    // ADDED: Keyboard dismissal function
     private func hideKeyboard() {
         dayFieldFocused = false
         weekFieldFocused = false
@@ -407,10 +464,8 @@ struct FanDuelParlayRowView: View {
     }
     
     private func updateCount(_ text: String, for index: Int) {
-        // Filter to numbers only
         let filteredText = text.filter { $0.isNumber }
         
-        // Validate range (1-30)
         if let value = Int(filteredText), value >= 1 && value <= 30 {
             switch index {
             case 0:
@@ -426,7 +481,6 @@ struct FanDuelParlayRowView: View {
                 break
             }
         } else if filteredText.isEmpty {
-            // Handle empty field temporarily
             switch index {
             case 0: dayText = ""
             case 1: weekText = ""
@@ -434,7 +488,6 @@ struct FanDuelParlayRowView: View {
             default: break
             }
         } else {
-            // Invalid input - reset to previous valid value
             switch index {
             case 0: dayText = String(dayCount)
             case 1: weekText = String(weekCount)
@@ -448,9 +501,10 @@ struct FanDuelParlayRowView: View {
         return "\(count) \(unit.capitalized)"
     }
     
+    // UPDATED: Use effective pages for odds calculation
     private func calculateOdds(totalDays: Int) -> String {
-        let baseMultiplier = book.difficulty.multiplier
-        let pagesPerDay = Double(book.totalPages) / Double(totalDays)
+        let baseMultiplier = currentBook.difficulty.multiplier
+        let pagesPerDay = Double(currentBook.effectiveTotalPages) / Double(totalDays) // Use effective pages
         
         let difficultyFactor: Double
         if totalDays <= 3 {

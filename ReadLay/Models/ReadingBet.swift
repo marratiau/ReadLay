@@ -4,8 +4,6 @@
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
-//  ReadingBet.swift - UPDATED EXISTING FILE
-//  Key changes: Made currentDay mutable to support day progression
 
 import SwiftUI
 import Foundation
@@ -19,11 +17,11 @@ struct ReadingBet: Identifiable, Hashable {
     let pagesPerDay: Int
     let totalDays: Int
     
-    // ADDED: Day tracking properties
+    // Day tracking properties
     let startDate: Date
     let targetEndDate: Date
     
-    // UPDATED: Made currentDay mutable and computed from start date
+    // Made currentDay mutable and computed from start date
     private var _currentDay: Int? = nil
     
     var currentDay: Int {
@@ -41,7 +39,7 @@ struct ReadingBet: Identifiable, Hashable {
         }
     }
     
-    // ADDED: Initialize with day tracking
+    // Initialize with day tracking
     init(id: UUID = UUID(), book: Book, timeframe: String, odds: String, wager: Double, pagesPerDay: Int, totalDays: Int) {
         self.id = id
         self.book = book
@@ -66,31 +64,31 @@ struct ReadingBet: Identifiable, Hashable {
         return wager + potentialWin
     }
     
-    // ADDED: Days remaining calculation
+    // Days remaining calculation
     var daysRemaining: Int {
         return max(0, totalDays - currentDay + 1)
     }
     
-    // ADDED: Check if bet is overdue
+    // Check if bet is overdue
     var isOverdue: Bool {
         return currentDay > totalDays
     }
     
-    // ADDED: Check if user is behind schedule
+    // Check if user is behind schedule
     var isBehindSchedule: Bool {
         let expectedProgress = currentDay * pagesPerDay
         // This will be compared with actual progress from ReadSlipViewModel
         return false // Will be calculated in ReadSlipViewModel
     }
     
-    // ADDED: Check if user is ahead of schedule
+    // Check if user is ahead of schedule
     var isAheadOfSchedule: Bool {
         let expectedProgress = currentDay * pagesPerDay
         // This will be compared with actual progress from ReadSlipViewModel
         return false // Will be calculated in ReadSlipViewModel
     }
     
-    // ADDED: Progress status enum
+    // Progress status enum
     enum ProgressStatus {
         case onTrack
         case ahead
@@ -99,9 +97,9 @@ struct ReadingBet: Identifiable, Hashable {
         case completed
     }
     
-    // ADDED: Get progress status (will be calculated in ReadSlipViewModel with actual progress)
+    // FIXED: Get progress status using effective page calculations
     func getProgressStatus(actualProgress: Int) -> ProgressStatus {
-        if actualProgress >= book.totalPages {
+        if actualProgress >= book.readingEndPage {
             return .completed
         }
         
@@ -109,7 +107,7 @@ struct ReadingBet: Identifiable, Hashable {
             return .overdue
         }
         
-        let expectedProgress = currentDay * pagesPerDay
+        let expectedProgress = expectedPagesToday
         
         if actualProgress >= expectedProgress + pagesPerDay {
             return .ahead
@@ -120,7 +118,7 @@ struct ReadingBet: Identifiable, Hashable {
         }
     }
     
-    // ADDED: Formatted time remaining
+    // Formatted time remaining
     var formattedTimeRemaining: String {
         if isOverdue {
             return "Overdue"
@@ -134,14 +132,14 @@ struct ReadingBet: Identifiable, Hashable {
         }
     }
     
-    // ADDED: Formatted start date
+    // Formatted start date
     var formattedStartDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter.string(from: startDate)
     }
     
-    // ADDED: Formatted target end date
+    // Formatted target end date
     var formattedTargetEndDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -154,20 +152,21 @@ struct ReadingBet: Identifiable, Hashable {
     }
 }
 
-// ADDED: Extension for day tracking utilities
+// ADDED: Extension for day tracking utilities using effective pages
 extension ReadingBet {
     
-    /// Get the expected pages that should be read by a specific day
+    /// FIXED: Get the expected pages that should be read by a specific day (using effective pages)
     func expectedPagesByDay(_ day: Int) -> Int {
-        return min(day * pagesPerDay, book.totalPages)
+        let effectiveTarget = min(day * pagesPerDay, book.effectiveTotalPages)
+        return book.readingStartPage + effectiveTarget - 1
     }
     
-    /// Get the expected pages that should be read by today
+    /// FIXED: Get the expected pages that should be read by today (using effective pages)
     var expectedPagesToday: Int {
         return expectedPagesByDay(currentDay)
     }
     
-    /// Check if a specific day's goal can be worked on (for "get ahead" functionality)
+    /// FIXED: Check if a specific day's goal can be worked on (using reading range)
     func canWorkOnDay(_ day: Int, actualProgress: Int) -> Bool {
         guard day <= totalDays else { return false }
         
@@ -186,7 +185,7 @@ extension ReadingBet {
         return currentDay
     }
     
-    /// ADDED: Advance to next day
+    /// Advance to next day
     mutating func advanceToNextDay() {
         if currentDay < totalDays {
             _currentDay = currentDay + 1

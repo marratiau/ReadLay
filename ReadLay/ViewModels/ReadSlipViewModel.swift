@@ -5,9 +5,6 @@
 //  Created by Mateo Arratia on 6/4/25.
 //
 
-//  ReadSlipViewModel.swift - UPDATED EXISTING FILE
-//  Key changes: Fixed progress calculation + resolved method name conflicts + day progression
-
 import SwiftUI
 import Combine
 
@@ -18,12 +15,12 @@ class ReadSlipViewModel: ObservableObject {
     @Published var completedBets: [CompletedBet] = []
     @Published var journalEntries: [JournalEntry] = []
     @Published var dailyProgress: [UUID: Int] = [:] // Pages read TODAY
-    @Published var totalPagesRead: [UUID: Int] = [:] // RENAMED: Total pages read (cumulative)
-    @Published var currentPagePosition: [UUID: Int] = [:] // NEW: Current page position in book
+    @Published var totalPagesRead: [UUID: Int] = [:] // Total pages read (cumulative)
+    @Published var currentPagePosition: [UUID: Int] = [:] // Current page position in book
     @Published var lastReadPage: [UUID: Int] = [:] // Last page read for each book
     @Published var engagementProgress: [UUID: [UUID: Int]] = [:]
     
-    // ADDED: Balance management
+    // Balance management
     @Published var currentBalance: Double = 10.0 // Start with $10
     
     // MARK: - Balance Management
@@ -87,8 +84,17 @@ class ReadSlipViewModel: ObservableObject {
     
     // MARK: - FIXED Progress Tracking
     func updateReadingProgress(for betId: UUID, startingPage: Int, endingPage: Int) {
+        guard let bet = placedBets.first(where: { $0.id == betId }) else {
+            print("DEBUG: No bet found for \(betId)")
+            return
+        }
+        
+        // FIXED: Use reading preferences for page validation
+        let clampedStartingPage = max(startingPage, bet.book.readingStartPage)
+        let clampedEndingPage = min(endingPage, bet.book.readingEndPage)
+        
         // Correct page counting (inclusive)
-        let pagesRead = max(0, endingPage - startingPage + 1)
+        let pagesRead = max(0, clampedEndingPage - clampedStartingPage + 1)
         
         // Update daily progress (pages read in this session today)
         dailyProgress[betId] = (dailyProgress[betId] ?? 0) + pagesRead
@@ -96,18 +102,16 @@ class ReadSlipViewModel: ObservableObject {
         // Update total pages read (cumulative count)
         totalPagesRead[betId] = (totalPagesRead[betId] ?? 0) + pagesRead
         
-        // FIXED: Update current page position (this is what should be displayed)
-        currentPagePosition[betId] = endingPage
+        // FIXED: Update current page position (use reading range)
+        currentPagePosition[betId] = clampedEndingPage
         
         // Update last read page
-        lastReadPage[betId] = endingPage
+        lastReadPage[betId] = clampedEndingPage
         
         print("DEBUG: Updated progress for bet \(betId)")
-        print("DEBUG: Starting page: \(startingPage), Ending page: \(endingPage)")
-        print("DEBUG: Pages read this session: \(pagesRead)")
-        print("DEBUG: Total pages read: \(totalPagesRead[betId] ?? 0)")
-        print("DEBUG: Current page position: \(endingPage)")
-        print("DEBUG: Last read page: \(endingPage)")
+        print("DEBUG: Reading range: \(bet.book.readingStartPage)-\(bet.book.readingEndPage)")
+        print("DEBUG: Effective pages: \(bet.book.effectiveTotalPages)")
+        print("DEBUG: Current page position: \(clampedEndingPage)")
         
         // Force UI update
         objectWillChange.send()
@@ -116,7 +120,7 @@ class ReadSlipViewModel: ObservableObject {
         checkForCompletedBets()
     }
     
-    // MARK: - UPDATED Progress Getters
+    // MARK: - Progress Getters
     
     /// Get current page position in the book (what should be displayed in progress)
     func getCurrentPagePosition(for betId: UUID) -> Int {
@@ -128,7 +132,7 @@ class ReadSlipViewModel: ObservableObject {
         return totalPagesRead[betId] ?? 0
     }
     
-    /// UPDATED: This should return current page position for progress calculations
+    /// This should return current page position for progress calculations
     func getTotalProgress(for betId: UUID) -> Int {
         return getCurrentPagePosition(for: betId)
     }
@@ -149,11 +153,11 @@ class ReadSlipViewModel: ObservableObject {
         return dailyPagesRead >= bet.pagesPerDay
     }
     
-    // FIXED: Check if book is completed using current page position
+    // FIXED: Check if book is completed using reading end page
     func isBookCompleted(for betId: UUID) -> Bool {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
         let currentPage = getCurrentPagePosition(for: betId)
-        return currentPage >= bet.book.totalPages
+        return currentPage >= bet.book.readingEndPage // Use reading preferences
     }
     
     // MARK: - Enhanced Day Tracking
@@ -169,7 +173,7 @@ class ReadSlipViewModel: ObservableObject {
     func canGetAhead(for betId: UUID) -> Bool {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return false }
         let currentPage = getCurrentPagePosition(for: betId)
-        let currentDayTarget = bet.expectedPagesToday
+        let currentDayTarget = bet.book.readingStartPage + (bet.pagesPerDay * bet.currentDay) - 1
         
         // Can get ahead if current day's goal is completed and not on final day
         return currentPage >= currentDayTarget && bet.currentDay < bet.totalDays
@@ -200,14 +204,18 @@ class ReadSlipViewModel: ObservableObject {
         return getProgressStatus(for: betId) == .ahead
     }
     
-    /// Get detailed progress info for a bet
+    /// FIXED: Get detailed progress info for a bet using reading range
     func getProgressInfo(for betId: UUID) -> (actual: Int, expected: Int, status: ReadingBet.ProgressStatus) {
         guard let bet = placedBets.first(where: { $0.id == betId }) else {
             return (0, 0, .onTrack)
         }
         
         let currentPage = getCurrentPagePosition(for: betId)
-        let expectedProgress = bet.expectedPagesToday
+        
+        // FIXED: Calculate expected progress within the effective reading range
+        let expectedPagesFromStart = (bet.book.effectiveTotalPages * bet.currentDay) / bet.totalDays
+        let expectedProgress = bet.book.readingStartPage + expectedPagesFromStart - 1
+        
         let status = bet.getProgressStatus(actualProgress: currentPage)
         
         return (currentPage, expectedProgress, status)
@@ -215,7 +223,7 @@ class ReadSlipViewModel: ObservableObject {
     
     // MARK: - Day Management
     
-    /// UPDATED: Start next day for a bet (reveals next day and advances current day)
+    /// Start next day for a bet (reveals next day without forcing reading session)
     func startNextDay(for betId: UUID) {
         guard let betIndex = placedBets.firstIndex(where: { $0.id == betId }) else {
             print("DEBUG: No bet found with ID \(betId)")
@@ -232,7 +240,7 @@ class ReadSlipViewModel: ObservableObject {
         
         // Check if current day goal is completed
         let currentPage = getCurrentPagePosition(for: betId)
-        let currentDayTarget = bet.pagesPerDay * bet.currentDay
+        let currentDayTarget = bet.book.readingStartPage + (bet.pagesPerDay * bet.currentDay) - 1
         
         guard currentPage >= currentDayTarget else {
             print("DEBUG: Current day goal not completed, cannot advance to next day")
@@ -258,7 +266,7 @@ class ReadSlipViewModel: ObservableObject {
     
     // MARK: - Reading Bets
     func addBet(book: Book, timeframe: String, odds: String) {
-        // ADDED: Check if book already has active bets
+        // Check if book already has active bets
         guard !hasActiveBets(for: book.id) else {
             print("Book already has active bets - cannot place new bet")
             return
@@ -283,7 +291,7 @@ class ReadSlipViewModel: ObservableObject {
     
     // MARK: - Engagement Bets
     func addEngagementBet(book: Book, goals: [EngagementGoal], odds: String) {
-        // ADDED: Check if book already has active engagement bet
+        // Check if book already has active engagement bet
         guard !hasActiveEngagementBet(for: book.id) else {
             print("Book already has active engagement bet - cannot place new bet")
             return
@@ -328,8 +336,8 @@ class ReadSlipViewModel: ObservableObject {
             placedBets.append(bet)
             dailyProgress[bet.id] = 0
             totalPagesRead[bet.id] = 0
-            currentPagePosition[bet.id] = 1 // Start at page 1
-            lastReadPage[bet.id] = 1
+            currentPagePosition[bet.id] = bet.book.readingStartPage // FIXED: Start at reading start page
+            lastReadPage[bet.id] = bet.book.readingStartPage // FIXED: Start at reading start page
         }
         
         // Move engagement bets from betslip to placed bets
@@ -414,7 +422,7 @@ class ReadSlipViewModel: ObservableObject {
         
         for bet in placedBets {
             let currentPage = getCurrentPagePosition(for: bet.id)
-            if currentPage >= bet.book.totalPages {
+            if currentPage >= bet.book.readingEndPage { // FIXED: Use reading end page
                 betsToComplete.append(bet)
             }
         }
@@ -422,7 +430,7 @@ class ReadSlipViewModel: ObservableObject {
         // Move completed bets to settled and pay out winnings
         for bet in betsToComplete {
             let currentPage = getCurrentPagePosition(for: bet.id)
-            let wasSuccessful = currentPage >= bet.book.totalPages
+            let wasSuccessful = currentPage >= bet.book.readingEndPage // FIXED: Use reading end page
             let payout = wasSuccessful ? bet.totalPayout : 0
             
             // Add winnings to balance
@@ -450,7 +458,7 @@ class ReadSlipViewModel: ObservableObject {
         }
     }
     
-    // ADDED: Manual daily progress reset (for testing or day changes)
+    // Manual daily progress reset (for testing or day changes)
     func resetDailyProgress() {
         for betId in dailyProgress.keys {
             dailyProgress[betId] = 0
@@ -458,7 +466,7 @@ class ReadSlipViewModel: ObservableObject {
         objectWillChange.send()
     }
     
-    // ADDED: Reset daily progress for specific bet
+    // Reset daily progress for specific bet
     func resetDailyProgress(for betId: UUID) {
         dailyProgress[betId] = 0
         objectWillChange.send()
@@ -469,7 +477,7 @@ class ReadSlipViewModel: ObservableObject {
         return journalEntries.filter { $0.bookId == bookId }.sorted { $0.date > $1.date }
     }
     
-    // RENAMED: To avoid conflict with getTotalPagesRead(for betId:)
+    // To avoid conflict with getTotalPagesRead(for betId:)
     func getTotalPagesReadFromJournal(for bookId: UUID) -> Int {
         return journalEntries
             .filter { $0.bookId == bookId }
@@ -506,7 +514,4 @@ extension ReadSlipViewModel {
         guard !entries.isEmpty else { return 0 }
         return entries.map { $0.endingPage ?? ($0.startingPage + $0.pagesRead - 1) }.max() ?? 0
     }
-    
-
-    
 }

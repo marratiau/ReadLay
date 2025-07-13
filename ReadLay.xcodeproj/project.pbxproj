@@ -10,9 +10,22 @@
 		2C070A9C2DF09A8A00A702FC /* ReadLay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReadLay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		2C5C970D2E243E680009A17B /* Exceptions for "ReadLay" folder in "ReadLay" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 2C070A9B2DF09A8A00A702FC /* ReadLay */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		2C070A9E2DF09A8A00A702FC /* ReadLay */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				2C5C970D2E243E680009A17B /* Exceptions for "ReadLay" folder in "ReadLay" target */,
+			);
 			path = ReadLay;
 			sourceTree = "<group>";
 		};
@@ -255,6 +268,8 @@
 				DEVELOPMENT_TEAM = 2HCV7GFTVR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ReadLay/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "ReadLay uses the camera to scan book ISBNs for exact edition lookup.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -284,6 +299,8 @@
 				DEVELOPMENT_TEAM = 2HCV7GFTVR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ReadLay/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "ReadLay uses the camera to scan book ISBNs for exact edition lookup.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

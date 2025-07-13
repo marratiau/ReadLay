@@ -18,6 +18,91 @@ struct Book: Identifiable, Hashable {
     let spineColor: Color
     let difficulty: ReadingDifficulty
     
+    // ADDED: Reading preferences for page tracking
+    var readingPreferences: ReadingPreferences {
+        get {
+            // Load from UserDefaults
+            return ReadingPreferences.load(for: self.id) ?? ReadingPreferences.default(for: self)
+        }
+        set {
+            // Save to UserDefaults
+            newValue.save(for: self.id)
+        }
+    }
+    
+    // ADDED: Computed properties based on preferences
+    var effectiveTotalPages: Int {
+        let prefs = readingPreferences
+        if let customEnd = prefs.customEndPage, let customStart = prefs.customStartPage {
+            return max(0, customEnd - customStart + 1)
+        }
+        
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            return totalPages
+        case .mainOnly:
+            return totalPages - prefs.estimatedFrontMatterPages - prefs.estimatedBackMatterPages
+        case .custom:
+            guard let start = prefs.customStartPage, let end = prefs.customEndPage else {
+                return totalPages
+            }
+            return max(0, end - start + 1)
+        }
+    }
+    
+    var readingStartPage: Int {
+        let prefs = readingPreferences
+        if let customStart = prefs.customStartPage {
+            return customStart
+        }
+        
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            return 1
+        case .mainOnly:
+            return prefs.estimatedFrontMatterPages + 1
+        case .custom:
+            return prefs.customStartPage ?? 1
+        }
+    }
+    
+    var readingEndPage: Int {
+        let prefs = readingPreferences
+        if let customEnd = prefs.customEndPage {
+            return customEnd
+        }
+        
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            return totalPages
+        case .mainOnly:
+            return totalPages - prefs.estimatedBackMatterPages
+        case .custom:
+            return prefs.customEndPage ?? totalPages
+        }
+    }
+    
+    // Check if book has custom reading preferences set
+    var hasCustomReadingPreferences: Bool {
+        let prefs = readingPreferences
+        return prefs.pageCountingStyle != .inclusive ||
+               prefs.customStartPage != nil ||
+               prefs.customEndPage != nil
+    }
+    
+    // Get reading preference summary
+    var readingPreferenceSummary: String {
+        let prefs = readingPreferences
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            return "Full book (\(effectiveTotalPages) pages)"
+        case .mainOnly:
+            return "Main story (\(effectiveTotalPages) pages)"
+        case .custom:
+            return "Custom range (\(effectiveTotalPages) pages)"
+        }
+    }
+    
     enum ReadingDifficulty: CaseIterable {
         case easy, medium, hard
         
@@ -30,10 +115,10 @@ struct Book: Identifiable, Hashable {
         }
     }
     
-    // Reading completion odds
+    // FIXED: Reading completion odds now use effective pages
     var odds: [(String, String)] {
         let baseMultiplier = difficulty.multiplier
-        let pagesFactor = Double(totalPages) / 300.0
+        let pagesFactor = Double(effectiveTotalPages) / 300.0 // FIXED: Use effective pages
         
         let dayOdds = calculateOdds(timeframe: 1, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
         let weekOdds = calculateOdds(timeframe: 7, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
@@ -46,8 +131,9 @@ struct Book: Identifiable, Hashable {
         ]
     }
     
+    // FIXED: Calculate odds using effective pages
     private func calculateOdds(timeframe: Int, baseMultiplier: Double, pagesFactor: Double) -> Int {
-        let pagesPerDay = Double(totalPages) / Double(timeframe)
+        let pagesPerDay = Double(effectiveTotalPages) / Double(timeframe) // FIXED: Use effective pages
         
         let difficultyFactor: Double
         switch timeframe {
@@ -69,7 +155,7 @@ struct Book: Identifiable, Hashable {
         return "+\(value)"
     }
     
-    // Journal action odds
+    // FIXED: Journal action odds now use effective pages
     var journalOdds: [(String, String)] {
         let baseMultiplier = difficulty.multiplier
         

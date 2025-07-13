@@ -32,13 +32,14 @@ struct BetSlip {
         return totalWager + totalPotentialWin
     }
     
+    // FIXED: Use effective pages for bet creation
     mutating func addReadingBet(book: Book, timeframe: String, odds: String) {
         readingBets.removeAll { $0.book.id == book.id }
         
         let totalDays = calculateDays(from: timeframe)
-        let pagesPerDay = Int(ceil(Double(book.totalPages) / Double(totalDays)))
+        // FIXED: Use effective pages for calculation
+        let pagesPerDay = Int(ceil(Double(book.effectiveTotalPages) / Double(totalDays)))
         
-        // UPDATED: Use the new ReadingBet initializer with day tracking
         let newBet = ReadingBet(
             book: book,
             timeframe: timeframe,
