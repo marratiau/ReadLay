@@ -17,13 +17,13 @@ struct ReadingSession: Identifiable {
     var endingPage: Int = 0
     var isCompleted: Bool = false
     var comment: String = "" // NEW: Mandatory comment/takeaway
-    
+
     // FIXED: Correct page counting (inclusive)
     var pagesRead: Int {
         guard endingPage > 0 && startingPage > 0 else { return 0 }
         return max(0, endingPage - startingPage + 1)
     }
-    
+
     var duration: TimeInterval {
         if let endTime = endTime {
             return endTime.timeIntervalSince(startTime)
@@ -31,12 +31,12 @@ struct ReadingSession: Identifiable {
             return Date().timeIntervalSince(startTime)
         }
     }
-    
+
     var formattedDuration: String {
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
         let seconds = Int(duration) % 60
-        
+
         if hours > 0 {
             return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
         } else {

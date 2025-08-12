@@ -11,7 +11,6 @@
 // Whenever this instance is assigned to another variable or constant, passed into a function, or returned from a function, a copy of the instance is made, meaning the original remains unchanged.
 // This allows us to create many instances from the same struct and use them as independent values, without worrying about modifying previous ones.
 
-
 // MARK: - Updated ActiveBetsView.swift
 //  Enhanced to show both reading and engagement bets
 
@@ -19,7 +18,7 @@ import SwiftUI
 
 struct ActiveBetsView: View {
     @EnvironmentObject var readSlipViewModel: ReadSlipViewModel
-    
+
     var body: some View {
         ScrollView {
             if readSlipViewModel.placedBets.isEmpty && readSlipViewModel.placedEngagementBets.isEmpty {
@@ -29,7 +28,7 @@ struct ActiveBetsView: View {
             }
         }
     }
-    
+
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Spacer().frame(height: 80)
@@ -48,14 +47,14 @@ struct ActiveBetsView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
     }
-    
+
     private var activeBetsContent: some View {
         LazyVStack(spacing: 16) {
             // Reading bets
             ForEach(readSlipViewModel.placedBets) { bet in
                 ActiveReadingBetRowView(bet: bet, readSlipViewModel: readSlipViewModel)
             }
-            
+
             // Engagement bets
             ForEach(readSlipViewModel.placedEngagementBets) { bet in
                 ActiveEngagementBetRowView(bet: bet, readSlipViewModel: readSlipViewModel)

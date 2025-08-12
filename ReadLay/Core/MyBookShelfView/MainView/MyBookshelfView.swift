@@ -9,11 +9,11 @@ import SwiftUI
 
 struct MyBookshelfView: View {
     @State private var books: [Book] = [] // Start with empty array
-    @State private var selectedBook: Book? = nil
+    @State private var selectedBook: Book?
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var showingBookSearch = false
     @State private var shouldNavigateToActiveBets = false // ADDED: Navigation state
-    
+
     init(readSlipViewModel: ReadSlipViewModel) {
         self.readSlipViewModel = readSlipViewModel
     }
@@ -42,7 +42,7 @@ struct MyBookshelfView: View {
             shouldNavigateToActiveBets = true
         }
     }
-    
+
     // MARK: - Main Content
     private var mainContent: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -53,7 +53,7 @@ struct MyBookshelfView: View {
             bottomPadding
         }
     }
-    
+
     // MARK: - Header Section
     private var headerSection: some View {
         HStack {
@@ -61,7 +61,7 @@ struct MyBookshelfView: View {
                 Text("My Bookshelf")
                     .font(.system(size: 28, weight: .bold, design: .serif))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 Text(books.isEmpty ? "Add books to get started" : "Tap a book to see reading odds")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
@@ -69,19 +69,19 @@ struct MyBookshelfView: View {
             .padding(.horizontal, 24)
             .padding(.top, 16)
             .padding(.bottom, 20)
-            
+
             Spacer()
-            
+
             balanceSection
         }
     }
-    
+
     private var balanceSection: some View {
         VStack(spacing: 4) {
             Text("Balance")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundColor(.goodreadsBrown)
-            
+
             Text("$\(readSlipViewModel.currentBalance, specifier: "%.2f")")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.goodreadsBrown)
@@ -90,7 +90,7 @@ struct MyBookshelfView: View {
         .padding(.top, 16)
         .padding(.bottom, 20)
     }
-    
+
     // MARK: - Bookshelf Section
     private var bookshelfSection: some View {
         VStack(spacing: 0) {
@@ -98,7 +98,7 @@ struct MyBookshelfView: View {
             shelfEdge
         }
     }
-    
+
     private var shelfBackground: some View {
         Rectangle()
             .fill(
@@ -114,7 +114,7 @@ struct MyBookshelfView: View {
             .frame(height: 180)
             .overlay(booksScrollView, alignment: .bottom)
     }
-    
+
     private var booksScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) { // ADDED: Small gap between books (4px)
@@ -125,7 +125,7 @@ struct MyBookshelfView: View {
             .padding(.vertical, 12)
         }
     }
-    
+
     private var existingBooks: some View {
         ForEach(books) { book in
             SpineView(book: book)
@@ -143,7 +143,7 @@ struct MyBookshelfView: View {
                 }
         }
     }
-    
+
     private var addBookButton: some View {
         Button(action: {
             showingBookSearch = true
@@ -165,7 +165,7 @@ struct MyBookshelfView: View {
                         RoundedRectangle(cornerRadius: 3)
                             .stroke(Color.goodreadsAccent.opacity(0.5), lineWidth: 1)
                     )
-                
+
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.goodreadsAccent)
@@ -174,7 +174,7 @@ struct MyBookshelfView: View {
         .buttonStyle(PlainButtonStyle())
         .padding(.leading, 12)
     }
-    
+
     private var shelfEdge: some View {
         Rectangle()
             .fill(
@@ -192,7 +192,7 @@ struct MyBookshelfView: View {
             .overlay(woodGrainEffect)
             .shadow(color: .shelfShadow.opacity(0.4), radius: 4, x: 0, y: 2)
     }
-    
+
     private var woodGrainEffect: some View {
         Rectangle()
             .fill(
@@ -209,7 +209,7 @@ struct MyBookshelfView: View {
                 )
             )
     }
-    
+
     // MARK: - Selected Book Section
     private var selectedBookSection: some View {
         VStack {
@@ -223,7 +223,7 @@ struct MyBookshelfView: View {
         }
         .frame(maxWidth: .infinity)
     }
-    
+
     private func selectedBookDetails(book: Book) -> some View {
         FanDuelParlayRowView(
             book: book,
@@ -232,10 +232,17 @@ struct MyBookshelfView: View {
                     selectedBook = nil
                 }
             },
+            // ADDED: Callback to update the book in the array
+            onBookUpdated: { updatedBook in
+                if let index = books.firstIndex(where: { $0.id == updatedBook.id }) {
+                    books[index] = updatedBook
+                    selectedBook = updatedBook  // Update selected book too
+                }
+            },
             onNavigateToActiveBets: {
                 // ADDED: Navigation to active bets
                 NotificationCenter.default.post(name: NSNotification.Name("NavigateToActiveBets"), object: nil)
-                
+
                 // Close the selected book
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     selectedBook = nil
@@ -252,29 +259,29 @@ struct MyBookshelfView: View {
         .padding(.horizontal, 20)
         .padding(.top, 16)
     }
-    
+
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "books.vertical")
                 .font(.system(size: 48))
                 .foregroundColor(.goodreadsAccent.opacity(0.5))
-            
+
             Text("Your Library Awaits")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-            
+
             Text("Add your first book to start tracking your reading goals")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.goodreadsAccent)
                 .multilineTextAlignment(.center)
-            
+
             addBookEmptyStateButton
         }
         .padding(.horizontal, 24)
         .padding(.top, 32)
         .frame(maxWidth: .infinity)
     }
-    
+
     private var addBookEmptyStateButton: some View {
         Button(action: {
             showingBookSearch = true
@@ -295,7 +302,7 @@ struct MyBookshelfView: View {
         }
         .padding(.top, 8)
     }
-    
+
     private var placeholderState: some View {
         VStack(spacing: 6) {
             Image(systemName: "hand.tap.fill")
@@ -309,7 +316,7 @@ struct MyBookshelfView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 16)
     }
-    
+
     // MARK: - Supporting Views
     private var bottomPadding: some View {
         Group {
@@ -318,11 +325,11 @@ struct MyBookshelfView: View {
             }
         }
     }
-    
+
     private var readSlipOverlay: some View {
         ReadSlipView(viewModel: readSlipViewModel)
     }
-    
+
     private var backgroundGradient: some View {
         LinearGradient(
             gradient: Gradient(colors: [

@@ -11,48 +11,48 @@ struct DailyBetRowView: View {
     let bet: DailyBet
     let onStartReading: () -> Void
     let onStartNextDay: (() -> Void)?
-    
+
     @EnvironmentObject var readSlipViewModel: ReadSlipViewModel
-    
+
     private var progressStatus: ReadingBet.ProgressStatus {
         return readSlipViewModel.getProgressStatus(for: bet.betId)
     }
-    
+
     private var canGetAhead: Bool {
         return readSlipViewModel.canGetAhead(for: bet.betId)
     }
-    
+
     private var progressInfo: (actual: Int, expected: Int, status: ReadingBet.ProgressStatus) {
         return readSlipViewModel.getProgressInfo(for: bet.betId)
     }
-    
+
     // UPDATED: More precise day completion logic
     private var isDailyGoalCompleted: Bool {
         return bet.isCompleted || bet.currentProgress >= bet.dailyGoal
     }
-    
+
     // Check if this is a completed previous day
     private var isPreviousCompletedDay: Bool {
         guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else { return false }
         return bet.dayNumber < readingBet.currentDay && isDailyGoalCompleted
     }
-    
+
     // Check if this is the current active day
     private var isCurrentDay: Bool {
         guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else { return false }
         return bet.dayNumber == readingBet.currentDay
     }
-    
+
     // Check if this is a future day that can be started
     private var canStartThisDay: Bool {
         return bet.isNextDay && isDailyGoalCompleted
     }
-    
+
     // Check if should show overall progress (hide for completed days)
     private var shouldShowOverallProgress: Bool {
         return !isPreviousCompletedDay
     }
-    
+
     var body: some View {
         VStack(spacing: 16) {
             headerRow
@@ -71,7 +71,7 @@ struct DailyBetRowView: View {
         )
         .opacity(isPreviousCompletedDay ? 0.85 : 1.0)
     }
-    
+
     // Dynamic background based on day state
     private var backgroundColorForDayState: Color {
         if isPreviousCompletedDay {
@@ -84,7 +84,7 @@ struct DailyBetRowView: View {
             return Color.goodreadsWarm
         }
     }
-    
+
     private var borderColorForDayState: Color {
         if isPreviousCompletedDay {
             return Color.green.opacity(0.4)
@@ -96,7 +96,7 @@ struct DailyBetRowView: View {
             return statusBorderColor
         }
     }
-    
+
     // Status-based styling
     private var statusBorderColor: Color {
         switch progressStatus {
@@ -112,14 +112,14 @@ struct DailyBetRowView: View {
             return Color.goodreadsAccent.opacity(0.2)
         }
     }
-    
+
     private var statusColor: Color {
         if isPreviousCompletedDay {
             return .green
         } else if isDailyGoalCompleted && canGetAhead {
             return .blue
         }
-        
+
         switch progressStatus {
         case .completed: return .green
         case .ahead: return .blue
@@ -128,14 +128,14 @@ struct DailyBetRowView: View {
         case .onTrack: return .goodreadsAccent
         }
     }
-    
+
     private var statusText: String {
         if isPreviousCompletedDay {
             return "COMPLETED"
         } else if isDailyGoalCompleted && canGetAhead {
             return "CAN START NEXT"
         }
-        
+
         switch progressStatus {
         case .completed: return "COMPLETED"
         case .ahead: return "AHEAD"
@@ -144,36 +144,36 @@ struct DailyBetRowView: View {
         case .onTrack: return "ON TRACK"
         }
     }
-    
+
     // MARK: - Header Row
     private var headerRow: some View {
         HStack(spacing: 12) {
             // Day status indicator
             dayStatusIndicator
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("Day \(bet.dayNumber) Goal")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 HStack(spacing: 8) {
                     progressCircle
-                    
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(bet.book.title)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.goodreadsBrown)
                             .lineLimit(1)
-                        
+
                         Text("Read \(bet.dailyGoal) pages (\(bet.pageRange))")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.goodreadsAccent)
                     }
                 }
             }
-            
+
             Spacer()
-            
+
             // Status indicator
             VStack(alignment: .trailing, spacing: 4) {
                 Text(statusText)
@@ -185,12 +185,12 @@ struct DailyBetRowView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(statusColor)
                     )
-                
+
                 dayIndicator
             }
         }
     }
-    
+
     // Day status indicator (TC badge equivalent)
     private var dayStatusIndicator: some View {
         Text("\(bet.dayNumber)")
@@ -202,7 +202,7 @@ struct DailyBetRowView: View {
                     .fill(dayIndicatorColor)
             )
     }
-    
+
     private var dayIndicatorColor: Color {
         if isPreviousCompletedDay {
             return .green
@@ -214,7 +214,7 @@ struct DailyBetRowView: View {
             return .goodreadsAccent.opacity(0.6)
         }
     }
-    
+
     private var progressCircle: some View {
         Circle()
             .stroke(
@@ -229,7 +229,7 @@ struct DailyBetRowView: View {
                     .foregroundColor(.green)
             )
     }
-    
+
     private var dayIndicator: some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text("of \(bet.totalDays) days")
@@ -237,7 +237,7 @@ struct DailyBetRowView: View {
                 .foregroundColor(.goodreadsAccent.opacity(0.7))
         }
     }
-    
+
     // MARK: - Progress Section (UPDATED WITH CLEAN PROGRESS BAR)
     private var progressSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -252,7 +252,7 @@ struct DailyBetRowView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.goodreadsBrown)
                 }
-                
+
                 // UPDATED: Clean daily progress bar
                 DailyProgressBar(
                     currentProgress: bet.currentProgress,
@@ -260,7 +260,7 @@ struct DailyBetRowView: View {
                     isCompleted: isDailyGoalCompleted
                 )
             }
-            
+
             // CONDITIONAL: Only show overall progress if not a completed previous day
             if shouldShowOverallProgress {
                 HStack {
@@ -275,7 +275,7 @@ struct DailyBetRowView: View {
             }
         }
     }
-    
+
     // MARK: - Action Button
     private var actionButton: some View {
         Button(action: buttonAction) {
@@ -299,7 +299,7 @@ struct DailyBetRowView: View {
         }
         .disabled(buttonIsDisabled)
     }
-    
+
     // Button action logic
     private func buttonAction() {
         if isPreviousCompletedDay {
@@ -313,7 +313,7 @@ struct DailyBetRowView: View {
             onStartReading()
         }
     }
-    
+
     // Button styling based on state
     private var buttonIcon: String {
         if isPreviousCompletedDay {
@@ -326,7 +326,8 @@ struct DailyBetRowView: View {
             return "book.fill"
         }
     }
-    
+
+    // MARK: - Action Button (Updated Logic)
     private var buttonText: String {
         if isPreviousCompletedDay {
             return "Completed"
@@ -336,10 +337,14 @@ struct DailyBetRowView: View {
         } else if canStartThisDay {
             return "Start Day \(bet.dayNumber)"
         } else {
-            return "Read"
+            // FIXED: Check if this is the first reading session
+            let currentPagePosition = readSlipViewModel.getCurrentPagePosition(for: bet.betId)
+            let isFirstSession = currentPagePosition <= bet.book.readingStartPage
+            
+            return isFirstSession ? "Start Reading" : "Continue Reading"
         }
     }
-    
+
     private var buttonTextColor: Color {
         if isPreviousCompletedDay {
             return .goodreadsAccent
@@ -347,7 +352,7 @@ struct DailyBetRowView: View {
             return .white
         }
     }
-    
+
     private var buttonBackgroundColor: Color {
         if isPreviousCompletedDay {
             return Color.goodreadsBeige.opacity(0.8)
@@ -359,7 +364,7 @@ struct DailyBetRowView: View {
             return Color.goodreadsBrown
         }
     }
-    
+
     private var buttonBorderColor: Color {
         if isPreviousCompletedDay {
             return Color.goodreadsAccent.opacity(0.3)
@@ -367,7 +372,7 @@ struct DailyBetRowView: View {
             return Color.clear
         }
     }
-    
+
     private var buttonIsDisabled: Bool {
         return isPreviousCompletedDay || progressStatus == .completed
     }

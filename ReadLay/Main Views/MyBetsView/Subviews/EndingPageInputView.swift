@@ -11,12 +11,12 @@ struct EndingPageInputView: View {
     @ObservedObject var sessionViewModel: ReadingSessionViewModel
     let book: Book
     let onComplete: (Int) -> Void
-    
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 24) {
                 headerSection
                 pageInputSection
@@ -47,33 +47,33 @@ struct EndingPageInputView: View {
             }
         }
     }
-    
+
     // MARK: - Extracted Components (Better MVVM)
     private var headerSection: some View {
         VStack(spacing: 16) {
             Text("Reading Session Complete!")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-            
+
             if let session = sessionViewModel.currentSession {
                 VStack(spacing: 8) {
                     Text("Time: \(session.formattedDuration)")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.goodreadsAccent)
-                    
+
                     Text("Started on page \(session.startingPage)")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.goodreadsAccent.opacity(0.8))
                 }
             }
-            
+
             Text("What page did you end on?")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.goodreadsBrown)
                 .multilineTextAlignment(.center)
         }
     }
-    
+
     private var pageInputSection: some View {
         VStack(spacing: 12) {
             TextField("Enter ending page", text: $sessionViewModel.endingPageText)
@@ -98,7 +98,7 @@ struct EndingPageInputView: View {
                 .onChange(of: sessionViewModel.endingPageText) { newValue in
                     sessionViewModel.setEndingPageText(newValue)
                 }
-            
+
             // ADDED: Error message display
             if let error = sessionViewModel.validationError {
                 Text(error)
@@ -109,12 +109,12 @@ struct EndingPageInputView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                     .animation(.easeInOut(duration: 0.2), value: sessionViewModel.validationError)
             }
-            
+
             VStack(spacing: 4) {
                 Text("page number")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
-                
+
                 // MOVED: Business logic to ViewModel
                 if let session = sessionViewModel.currentSession,
                    let endingPage = Int(sessionViewModel.endingPageText),
@@ -128,7 +128,7 @@ struct EndingPageInputView: View {
         }
         .padding(.horizontal, 20)
     }
-    
+
     private var buttonSection: some View {
         HStack(spacing: 16) {
             Button(action: {
@@ -148,18 +148,18 @@ struct EndingPageInputView: View {
                             )
                     )
             }
-            
+
             Button(action: {
                 // FIXED: Simplified completion flow
                 if sessionViewModel.isValidEndingInput,
                    let endingPage = Int(sessionViewModel.endingPageText) {
-                    
+
                     // First complete the session locally
                     sessionViewModel.finishReading()
-                    
+
                     // Then call the completion callback
                     onComplete(endingPage)
-                    
+
                     // The session will be processed by the calling view
                 }
             }) {

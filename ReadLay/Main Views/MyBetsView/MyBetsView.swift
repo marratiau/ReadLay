@@ -11,26 +11,26 @@ struct MyBetsView: View {
     @State private var selectedTab = 0
     private let tabs = ["DAILY", "ACTIVE", "SETTLED"]
     @State private var currentTime = Date()
-    
+
     // ADDED: Timer to update current time
     let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header with date/time
             headerSection
-            
+
             // Tab selector with proper width indicator
             tabSelectorSection
-            
+
             // Content based on selected tab
             TabView(selection: $selectedTab) {
                 DailyBetsView()
                     .tag(0)
-                
+
                 ActiveBetsView()
                     .tag(1)
-                
+
                 SettledBetsView()
                     .tag(2)
             }
@@ -57,7 +57,7 @@ struct MyBetsView: View {
             currentTime = Date()
         }
     }
-    
+
     // MARK: - Tab Selector with Proper Width (FIXED)
     private var tabSelectorSection: some View {
         VStack(spacing: 0) {
@@ -77,7 +77,7 @@ struct MyBetsView: View {
                 }
             }
             .background(Color.goodreadsBeige.opacity(0.5))
-            
+
             // FIXED: Indicator that matches text width
             HStack(spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
@@ -98,7 +98,7 @@ struct MyBetsView: View {
             }
         }
     }
-    
+
     // ADDED: Header section with date/time
     private var headerSection: some View {
         HStack {
@@ -106,20 +106,20 @@ struct MyBetsView: View {
                 Text("My Bets")
                     .font(.system(size: 28, weight: .bold, design: .serif))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 Text("Track your reading progress")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
             }
-            
+
             Spacer()
-            
+
             // ADDED: Date and time display
             VStack(alignment: .trailing, spacing: 4) {
                 Text(formattedDate)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 Text(formattedTime)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
@@ -130,14 +130,14 @@ struct MyBetsView: View {
         .padding(.top, 16)
         .padding(.bottom, 20)
     }
-    
+
     // ADDED: Date and time formatters
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return formatter.string(from: currentTime)
     }
-    
+
     private var formattedTime: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"

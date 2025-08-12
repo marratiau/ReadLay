@@ -17,18 +17,18 @@ struct BookJournalSummary: Identifiable {
     let totalPages: Int
     let lastSession: Date
     let entries: [JournalEntry]
-    
+
     var formattedTotalTime: String {
         let hours = Int(totalTime) / 3600
         let minutes = Int(totalTime) % 3600 / 60
-        
+
         if hours > 0 {
             return "\(hours)h \(minutes)m"
         } else {
             return "\(minutes)m"
         }
     }
-    
+
     var formattedLastSession: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.dateTimeStyle = .named

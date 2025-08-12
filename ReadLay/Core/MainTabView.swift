@@ -9,8 +9,8 @@ import SwiftUI
 
 struct MainTabView: View {
     @StateObject private var readSlipViewModel = ReadSlipViewModel()
-    @State private var selectedTab = 0 // ADDED: Track selected tab
-    
+    @State private var selectedTab = 0
+
     var body: some View {
         TabView(selection: $selectedTab) {
             MyBookshelfView(readSlipViewModel: readSlipViewModel)
@@ -19,7 +19,7 @@ struct MainTabView: View {
                     Text("Bookshelf")
                 }
                 .tag(0)
-            
+
             MyBetsView()
                 .environmentObject(readSlipViewModel)
                 .tabItem {
@@ -27,14 +27,14 @@ struct MainTabView: View {
                     Text("My Bets")
                 }
                 .tag(1)
-            
+
             MyActivityView(readSlipViewModel: readSlipViewModel)
                 .tabItem {
                     Image(systemName: "person.crop.circle")
                     Text("My Activity")
                 }
                 .tag(2)
-            
+
             MyJournalView(readSlipViewModel: readSlipViewModel)
                 .tabItem {
                     Image(systemName: "book.pages")
@@ -42,7 +42,8 @@ struct MainTabView: View {
                 }
                 .tag(3)
         }
-        // FIXED: Navigation to active bets
+        
+        // Navigation to active bets
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToActiveBets"))) { _ in
             DispatchQueue.main.async {
                 selectedTab = 1 // Switch to My Bets tab

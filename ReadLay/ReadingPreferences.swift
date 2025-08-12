@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 7/13/25.
 //
 
-
 //
 //  ReadingPreferences.swift
 //  ReadLay
@@ -21,23 +20,23 @@ struct ReadingPreferences: Codable {
     // Simple toggles for quick implementation
     var includeFrontMatter: Bool = true      // Preface, prologue, etc.
     var includeBackMatter: Bool = true       // Epilogue, appendix, etc.
-    
+
     // Estimated pages (user can adjust)
     var estimatedFrontMatterPages: Int = 10
     var estimatedBackMatterPages: Int = 20
-    
+
     // Custom range override
-    var customStartPage: Int? = nil
-    var customEndPage: Int? = nil
-    
+    var customStartPage: Int?
+    var customEndPage: Int?
+
     // Reading style preference
     var pageCountingStyle: PageCountingStyle = .inclusive
-    
+
     enum PageCountingStyle: String, CaseIterable, Codable {
         case inclusive = "inclusive"         // Count everything
         case mainOnly = "main_only"         // Skip front/back matter
         case custom = "custom"              // User-defined range
-        
+
         var displayName: String {
             switch self {
             case .inclusive: return "Include Everything"
@@ -45,7 +44,7 @@ struct ReadingPreferences: Codable {
             case .custom: return "Custom Range"
             }
         }
-        
+
         var description: String {
             switch self {
             case .inclusive: return "Count all pages including preface, epilogue, etc."
@@ -53,7 +52,7 @@ struct ReadingPreferences: Codable {
             case .custom: return "Set custom start and end pages"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .inclusive: return "book.closed"
@@ -62,10 +61,10 @@ struct ReadingPreferences: Codable {
             }
         }
     }
-    
+
     static func `default`(for book: Book) -> ReadingPreferences {
         var prefs = ReadingPreferences()
-        
+
         // Smart defaults based on book length
         if book.totalPages > 300 {
             prefs.estimatedFrontMatterPages = 15
@@ -77,17 +76,17 @@ struct ReadingPreferences: Codable {
             prefs.estimatedFrontMatterPages = 5
             prefs.estimatedBackMatterPages = 10
         }
-        
+
         return prefs
     }
-    
+
     // Persistence methods
     func save(for bookId: UUID) {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: "reading_prefs_\(bookId)")
         }
     }
-    
+
     static func load(for bookId: UUID) -> ReadingPreferences? {
         guard let data = UserDefaults.standard.data(forKey: "reading_prefs_\(bookId)"),
               let prefs = try? JSONDecoder().decode(ReadingPreferences.self, from: data) else {

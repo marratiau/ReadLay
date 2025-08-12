@@ -9,7 +9,7 @@ import SwiftUI
 
 struct CompactReadSlipView: View {
     @ObservedObject var viewModel: ReadSlipViewModel
-    
+
     var body: some View {
         HStack {
             // Expand arrow
@@ -29,15 +29,15 @@ struct CompactReadSlipView: View {
                             )
                     )
             }
-            
+
             Spacer()
-            
+
             // ReadSlip title and count
             HStack(spacing: 8) {
                 Text("ReadSlip")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 // Bet count circle
                 if viewModel.betSlip.totalBets > 0 {
                     Text("\(viewModel.betSlip.totalBets)")

@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 6/4/25.
 //
 
-
 import SwiftUI
 
 struct ManualBookEntryView: View {
@@ -15,15 +14,15 @@ struct ManualBookEntryView: View {
     @State private var pages = ""
     @State private var selectedDifficulty: Book.ReadingDifficulty = .medium
     @State private var coverImageURL = ""
-    
+
     let onBookAdded: (Book) -> Void
-    
+
     var isValidInput: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !pages.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         Int(pages) != nil && Int(pages)! > 0
     }
-    
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -49,24 +48,24 @@ struct ManualBookEntryView: View {
             }
         }
     }
-    
+
     private var headerSection: some View {
         VStack(spacing: 8) {
             Image(systemName: "book.fill")
                 .font(.system(size: 48))
                 .foregroundColor(.goodreadsBrown)
-            
+
             Text("Add Your Book")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-            
+
             Text("Enter the details of your book manually")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.goodreadsAccent)
                 .multilineTextAlignment(.center)
         }
     }
-    
+
     private var inputFields: some View {
         VStack(spacing: 20) {
             // Title field
@@ -74,7 +73,7 @@ struct ManualBookEntryView: View {
                 Text("Book Title *")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 TextField("e.g., The Way of the Superior Man", text: $title)
                     .font(.system(size: 16))
                     .padding(.horizontal, 16)
@@ -88,13 +87,13 @@ struct ManualBookEntryView: View {
                             )
                     )
             }
-            
+
             // Author field
             VStack(alignment: .leading, spacing: 8) {
                 Text("Author")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 TextField("e.g., David Deida", text: $author)
                     .font(.system(size: 16))
                     .padding(.horizontal, 16)
@@ -108,13 +107,13 @@ struct ManualBookEntryView: View {
                             )
                     )
             }
-            
+
             // Pages field
             VStack(alignment: .leading, spacing: 8) {
                 Text("Number of Pages *")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 TextField("e.g., 250", text: $pages)
                     .font(.system(size: 16))
                     .keyboardType(.numberPad)
@@ -129,13 +128,13 @@ struct ManualBookEntryView: View {
                             )
                     )
             }
-            
+
             // Cover URL field (optional)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Cover Image URL (Optional)")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 TextField("https://example.com/cover.jpg", text: $coverImageURL)
                     .font(.system(size: 16))
                     .keyboardType(.URL)
@@ -153,13 +152,13 @@ struct ManualBookEntryView: View {
             }
         }
     }
-    
+
     private var difficultySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Reading Difficulty")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.goodreadsBrown)
-            
+
             HStack(spacing: 12) {
                 ForEach(Book.ReadingDifficulty.allCases, id: \.self) { difficulty in
                     Button(action: {
@@ -183,7 +182,7 @@ struct ManualBookEntryView: View {
             }
         }
     }
-    
+
     private var addButtonSection: some View {
         Button(action: addBook) {
             Text("Add to My Bookshelf")
@@ -199,7 +198,7 @@ struct ManualBookEntryView: View {
         .disabled(!isValidInput)
         .padding(.top, 8)
     }
-    
+
     private var backgroundGradient: some View {
         LinearGradient(
             gradient: Gradient(colors: [
@@ -211,7 +210,7 @@ struct ManualBookEntryView: View {
         )
         .ignoresSafeArea()
     }
-    
+
     private func addBook() {
         let spineColors: [Color] = [
             Color(red: 0.2, green: 0.4, blue: 0.8),
@@ -223,7 +222,7 @@ struct ManualBookEntryView: View {
             Color(red: 0.7, green: 0.6, blue: 0.1),
             Color(red: 0.3, green: 0.1, blue: 0.6)
         ]
-        
+
         let book = Book(
             id: UUID(),
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -235,7 +234,7 @@ struct ManualBookEntryView: View {
             spineColor: spineColors.randomElement() ?? Color.goodreadsBrown,
             difficulty: selectedDifficulty
         )
-        
+
         onBookAdded(book)
     }
 }

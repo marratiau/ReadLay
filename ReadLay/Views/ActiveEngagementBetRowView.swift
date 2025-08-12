@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 7/13/25.
 //
 
-
 //
 //  ActiveEngagementBetRowView.swift
 //  ReadLay
@@ -20,7 +19,7 @@ import SwiftUI
 struct ActiveEngagementBetRowView: View {
     let bet: EngagementBet
     let readSlipViewModel: ReadSlipViewModel
-    
+
     var body: some View {
         VStack(spacing: 12) {
             // Header
@@ -30,33 +29,33 @@ struct ActiveEngagementBetRowView: View {
                         Image(systemName: "brain.head.profile")
                             .font(.system(size: 14))
                             .foregroundColor(.goodreadsBrown)
-                        
+
                         Text("Engagement Goals")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.goodreadsBrown)
                     }
-                    
+
                     Text(bet.book.title)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.goodreadsBrown)
                         .lineLimit(2)
-                    
+
                     HStack(spacing: 8) {
                         Text("$\(bet.wager, specifier: "%.0f") bet")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.goodreadsBrown.opacity(0.8))
-                        
+
                         Text("•")
                             .foregroundColor(.goodreadsAccent.opacity(0.5))
-                        
+
                         Text("Win $\(bet.potentialWin, specifier: "%.2f")")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.green)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(bet.odds)
                         .font(.system(size: 16, weight: .bold))
@@ -71,13 +70,13 @@ struct ActiveEngagementBetRowView: View {
                                         .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
                                 )
                         )
-                    
+
                     Text("\(Int(bet.progressPercentage * 100))% complete")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.goodreadsAccent.opacity(0.8))
                 }
             }
-            
+
             // Goals progress
             VStack(spacing: 8) {
                 ForEach(bet.goals) { goal in
@@ -86,19 +85,19 @@ struct ActiveEngagementBetRowView: View {
                             .font(.system(size: 16))
                             .foregroundColor(.goodreadsAccent)
                             .frame(width: 24)
-                        
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(goal.type.displayName)
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.goodreadsBrown)
-                            
+
                             Text("\(goal.currentCount)/\(goal.targetCount) completed")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.goodreadsAccent)
                         }
-                        
+
                         Spacer()
-                        
+
                         // Progress indicator
                         Circle()
                             .stroke(
@@ -121,15 +120,15 @@ struct ActiveEngagementBetRowView: View {
                     )
                 }
             }
-            
+
             // Overall progress
             HStack {
                 Text("Overall Progress")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
-                
+
                 Spacer()
-                
+
                 Text("\(bet.completedGoalsCount)/\(bet.goals.count) goals complete")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)

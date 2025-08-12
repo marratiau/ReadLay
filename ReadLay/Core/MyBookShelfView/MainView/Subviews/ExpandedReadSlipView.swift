@@ -10,21 +10,21 @@ import SwiftUI
 struct ExpandedReadSlipView: View {
     @ObservedObject var viewModel: ReadSlipViewModel
     @State private var wagerText: [UUID: String] = [:]
-    
+
     // ADDED: Computed property for balance validation
     private var hasInsufficientFunds: Bool {
         return !viewModel.canAffordWager(viewModel.betSlip.totalWager)
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             headerSection
-            
+
             Divider()
                 .background(Color.goodreadsAccent.opacity(0.2))
-            
+
             betsScrollView
-            
+
             if viewModel.betSlip.totalBets > 0 {
                 placeBetSection
             }
@@ -35,7 +35,7 @@ struct ExpandedReadSlipView: View {
             initializeWagerText()
         }
     }
-    
+
     private var headerSection: some View {
         HStack {
             Button(action: {
@@ -45,14 +45,14 @@ struct ExpandedReadSlipView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
             }
-            
+
             Spacer()
-            
+
             HStack(spacing: 8) {
                 Text("ReadSlip")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 if viewModel.betSlip.totalBets > 0 {
                     Text("\(viewModel.betSlip.totalBets)")
                         .font(.system(size: 14, weight: .bold))
@@ -64,9 +64,9 @@ struct ExpandedReadSlipView: View {
                         )
                 }
             }
-            
+
             Spacer()
-            
+
             // ADDED: Balance display
             VStack(alignment: .trailing, spacing: 2) {
                 Text("Balance")
@@ -80,7 +80,7 @@ struct ExpandedReadSlipView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
     }
-    
+
     private var betsScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
@@ -107,7 +107,7 @@ struct ExpandedReadSlipView: View {
                         }
                     )
                 }
-                
+
                 // Engagement bets
                 ForEach(viewModel.betSlip.engagementBets) { bet in
                     EngagementBetRowView(
@@ -137,12 +137,12 @@ struct ExpandedReadSlipView: View {
         }
         .frame(maxHeight: 200)
     }
-    
+
     private var placeBetSection: some View {
         VStack(spacing: 12) {
             Divider()
                 .background(Color.goodreadsAccent.opacity(0.2))
-            
+
             // ADDED: Insufficient funds warning
             if hasInsufficientFunds {
                 HStack {
@@ -157,7 +157,7 @@ struct ExpandedReadSlipView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
             }
-            
+
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Total Wager")
@@ -167,9 +167,9 @@ struct ExpandedReadSlipView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(hasInsufficientFunds ? .red : .goodreadsBrown)
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("Potential Win")
                         .font(.system(size: 12, weight: .medium))
@@ -180,7 +180,7 @@ struct ExpandedReadSlipView: View {
                 }
             }
             .padding(.horizontal, 20)
-            
+
             Button(action: {
                 viewModel.placeBets()
             }) {
@@ -200,7 +200,7 @@ struct ExpandedReadSlipView: View {
         }
         .background(Color.goodreadsBeige.opacity(0.5))
     }
-    
+
     private func initializeWagerText() {
         // Initialize wager text for all bets with balance-aware defaults
         for bet in viewModel.betSlip.readingBets {

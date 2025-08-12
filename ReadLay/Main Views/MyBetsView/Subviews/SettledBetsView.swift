@@ -5,12 +5,11 @@
 //  Created by Mateo Arratia on 6/4/25.
 //
 
-
 import SwiftUI
 
 struct SettledBetsView: View {
     @EnvironmentObject var readSlipViewModel: ReadSlipViewModel
-    
+
     var body: some View {
         ScrollView {
             if readSlipViewModel.completedBets.isEmpty {
@@ -46,13 +45,13 @@ struct SettledBetsView: View {
 
 struct SettledBetRowView: View {
     let completedBet: CompletedBet
-    
+
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter.string(from: completedBet.completedDate)
     }
-    
+
     var body: some View {
         VStack(spacing: 12) {
             // Header
@@ -62,18 +61,18 @@ struct SettledBetRowView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.goodreadsBrown)
                         .lineLimit(2)
-                    
+
                     Text("Completed in \(completedBet.originalBet.timeframe)")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.goodreadsAccent)
-                    
+
                     Text("Finished on \(formattedDate)")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.goodreadsAccent.opacity(0.8))
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(completedBet.wasSuccessful ? "WON" : "LOST")
                         .font(.system(size: 12, weight: .bold))
@@ -84,7 +83,7 @@ struct SettledBetRowView: View {
                             RoundedRectangle(cornerRadius: 6)
                                 .fill(completedBet.wasSuccessful ? Color.green : Color.red)
                         )
-                    
+
                     if completedBet.wasSuccessful {
                         Text("+$\(completedBet.payout, specifier: "%.2f")")
                             .font(.system(size: 14, weight: .bold))
@@ -96,7 +95,7 @@ struct SettledBetRowView: View {
                     }
                 }
             }
-            
+
             // Stats
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -107,9 +106,9 @@ struct SettledBetRowView: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.goodreadsBrown)
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Original Odds")
                         .font(.system(size: 11, weight: .medium))

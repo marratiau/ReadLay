@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SpineView: View {
     let book: Book
-    
+
     // ADDED: Dynamic width based on page count (like real books!)
     private var spineWidth: CGFloat {
         switch book.totalPages {
@@ -23,7 +23,7 @@ struct SpineView: View {
             return 42 // Very thick books
         }
     }
-    
+
     // ADDED: Dynamic font size based on title length
     private var titleFontSize: CGFloat {
         let titleLength = book.title.count
@@ -38,7 +38,7 @@ struct SpineView: View {
             return 6 // Very long titles
         }
     }
-    
+
     var body: some View {
         ZStack {
             // Main spine background
@@ -55,7 +55,7 @@ struct SpineView: View {
                     )
                 )
                 .frame(width: spineWidth, height: 155) // DYNAMIC: Width varies, height fixed
-            
+
             // Title text - IMPROVED: Better scaling for long titles
             Text(book.title)
                 .font(.system(size: titleFontSize, weight: .semibold))

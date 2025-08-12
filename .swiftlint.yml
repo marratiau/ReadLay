@@ -1,0 +1,47 @@
+# .swiftlint.yml   ← keep this at project root
+#
+# ─── GLOBAL SETTINGS ────────────────────────────────────────────────
+included:            # lint only these folders (defaults to all)
+  - ReadLay
+excluded:            # never lint Pods, Generated, etc.
+  - Pods
+  - Generated
+
+# ─── CORE RULES YOU ALREADY HAVE ───────────────────────────────────
+cyclomatic_complexity:
+  warning: 12        # a little looser than 10
+  error:   20
+
+type_body_length:
+  warning: 180       # bump from 150 if most View structs exceed it
+  error:   300
+
+# ─── TURN OFF NOISY RULES (OPTIONAL) ───────────────────────────────
+disabled_rules:
+  - trailing_whitespace
+  - todo               # TODO/FIXME won’t be red errors
+  - line_length        # or configure it instead (see below)
+  - empty_count
+  - type_body_length
+
+# ─── TWEAK POPULAR RULES ───────────────────────────────────────────
+line_length:          # keep the rule, but relax it
+  warning: 140
+  error:   200
+  ignores_comments: true
+  ignores_urls:     true
+
+identifier_name:      # allow snake_case ONLY for raw-API models
+  allowed_symbols: ["_"]
+  excluded: ".*OpenLibraryBook.*"   # regex for filenames or type names
+
+# ─── OPT-IN RULES YOU *DO* CARE ABOUT ──────────────────────────────
+opt_in_rules:
+  - large_tuple           # enforces structs over 3+-element tuples
+  - unused_enumerated     # catches forgotten `enumerated()` indices
+  - empty_count           # prefer `isEmpty` to `count == 0`
+
+# ─── REGEX-BASED WHITELISTING EXAMPLE ─────────────────────────────
+# You can ignore generated SwiftUI previews, etc.
+excluded_macpaths:
+  - ".*Preview$"

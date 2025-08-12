@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 7/13/25.
 //
 
-
 //
 //  ISBNLookupView.swift
 //  ReadLay
@@ -25,15 +24,15 @@ struct ISBNLookupView: View {
     @State private var hasSearched = false
     @State private var showingScanner = false
     @State private var errorMessage: String?
-    
+
     let onBookSelected: (Book) -> Void
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 headerSection
                 isbnInputSection
-                
+
                 if isSearching {
                     searchingView
                 } else if hasSearched && searchResults.isEmpty {
@@ -43,7 +42,7 @@ struct ISBNLookupView: View {
                 } else {
                     instructionsView
                 }
-                
+
                 Spacer()
             }
             .background(backgroundGradient)
@@ -71,17 +70,17 @@ struct ISBNLookupView: View {
             }
         }
     }
-    
+
     private var headerSection: some View {
         VStack(spacing: 12) {
             Image(systemName: "barcode.viewfinder")
                 .font(.system(size: 40))
                 .foregroundColor(.goodreadsBrown)
-            
+
             Text("Find Your Exact Book")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-            
+
             Text("Scan or enter the ISBN to find your specific edition")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.goodreadsAccent)
@@ -90,7 +89,7 @@ struct ISBNLookupView: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
     }
-    
+
     private var isbnInputSection: some View {
         VStack(spacing: 16) {
             HStack(spacing: 12) {
@@ -110,7 +109,7 @@ struct ISBNLookupView: View {
                     .onSubmit {
                         searchByISBN()
                     }
-                
+
                 Button(action: {
                     searchByISBN()
                 }) {
@@ -125,7 +124,7 @@ struct ISBNLookupView: View {
                 }
                 .disabled(!isValidISBN)
             }
-            
+
             // Only show scan button if device supports it
             if DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
                 Button(action: {
@@ -150,7 +149,7 @@ struct ISBNLookupView: View {
                     )
                 }
             }
-            
+
             if let error = errorMessage {
                 Text(error)
                     .font(.system(size: 12, weight: .medium))
@@ -161,7 +160,7 @@ struct ISBNLookupView: View {
         }
         .padding(.horizontal, 24)
     }
-    
+
     private var searchingView: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -173,7 +172,7 @@ struct ISBNLookupView: View {
             Spacer()
         }
     }
-    
+
     private var noResultsView: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -191,7 +190,7 @@ struct ISBNLookupView: View {
         }
         .padding(.horizontal, 24)
     }
-    
+
     private var resultsView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
@@ -210,16 +209,16 @@ struct ISBNLookupView: View {
             .padding(.vertical, 16)
         }
     }
-    
+
     private var instructionsView: some View {
         VStack(spacing: 20) {
             Spacer()
-            
+
             VStack(spacing: 16) {
                 Text("Where to find the ISBN:")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
-                
+
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
                         Image(systemName: "book.closed")
@@ -230,7 +229,7 @@ struct ISBNLookupView: View {
                             .foregroundColor(.goodreadsAccent)
                         Spacer()
                     }
-                    
+
                     HStack(spacing: 12) {
                         Image(systemName: "doc.text")
                             .font(.system(size: 20))
@@ -240,7 +239,7 @@ struct ISBNLookupView: View {
                             .foregroundColor(.goodreadsAccent)
                         Spacer()
                     }
-                    
+
                     HStack(spacing: 12) {
                         Image(systemName: "ipad")
                             .font(.system(size: 20))
@@ -262,12 +261,12 @@ struct ISBNLookupView: View {
                         )
                 )
             }
-            
+
             Spacer()
         }
         .padding(.horizontal, 24)
     }
-    
+
     private var backgroundGradient: some View {
         LinearGradient(
             gradient: Gradient(colors: [
@@ -279,41 +278,41 @@ struct ISBNLookupView: View {
         )
         .ignoresSafeArea()
     }
-    
+
     private var isValidISBN: Bool {
         let cleaned = isbnText.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: " ", with: "")
         return cleaned.count == 10 || cleaned.count == 13
     }
-    
+
     private func searchByISBN() {
         guard isValidISBN else {
             errorMessage = "Please enter a valid 10 or 13 digit ISBN"
             return
         }
-        
+
         errorMessage = nil
         isSearching = true
         hasSearched = true
         searchResults = []
-        
+
         Task {
             async let googleResult = GoogleBooksAPI.shared.searchByISBN(isbn: isbnText)
             async let openLibraryResult = OpenLibraryAPI.shared.searchByISBN(isbn: isbnText)
-            
+
             var results: [SearchResult] = []
-            
+
             if let googleBook = try? await googleResult {
                 results.append(.googleBooks(googleBook))
             }
-            
+
             if let openLibraryBook = try? await openLibraryResult {
                 results.append(.openLibrary(openLibraryBook))
             }
-            
+
             await MainActor.run {
                 self.searchResults = results
                 self.isSearching = false
-                
+
                 if results.isEmpty {
                     self.errorMessage = "No books found with this ISBN"
                 }
@@ -325,12 +324,12 @@ struct ISBNLookupView: View {
 // MARK: - ISBN Scanner View
 struct ISBNScannerView: UIViewControllerRepresentable {
     let onISBNFound: (String) -> Void
-    
+
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let recognizedDataTypes: Set<DataScannerViewController.RecognizedDataType> = [
             .barcode(symbologies: [.ean13, .ean8, .upce])
         ]
-        
+
         let scanner = DataScannerViewController(
             recognizedDataTypes: recognizedDataTypes,
             qualityLevel: .balanced,
@@ -338,24 +337,24 @@ struct ISBNScannerView: UIViewControllerRepresentable {
             isGuidanceEnabled: true,
             isHighlightingEnabled: true
         )
-        
+
         scanner.delegate = context.coordinator
         return scanner
     }
-    
+
     func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     class Coordinator: NSObject, DataScannerViewControllerDelegate {
         let parent: ISBNScannerView
-        
+
         init(_ parent: ISBNScannerView) {
             self.parent = parent
         }
-        
+
         func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
             switch item {
             case .barcode(let barcode):
@@ -373,7 +372,7 @@ struct ISBNScannerView: UIViewControllerRepresentable {
 struct ISBNSearchResultRowView: View {
     let result: SearchResult
     let onSelect: () -> Void
-    
+
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
@@ -393,7 +392,7 @@ struct ISBNSearchResultRowView: View {
                 }
                 .frame(width: 60, height: 85)
                 .cornerRadius(8)
-                
+
                 // Book details
                 VStack(alignment: .leading, spacing: 6) {
                     Text(result.title)
@@ -401,19 +400,19 @@ struct ISBNSearchResultRowView: View {
                         .foregroundColor(.goodreadsBrown)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    
+
                     if let author = result.author {
                         Text(author)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.goodreadsAccent)
                             .lineLimit(1)
                     }
-                    
+
                     HStack(spacing: 8) {
                         Text("\(result.pageCount) pages")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.goodreadsAccent.opacity(0.8))
-                        
+
                         Text("ISBN Match")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.white)
@@ -423,7 +422,7 @@ struct ISBNSearchResultRowView: View {
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.green)
                             )
-                        
+
                         Text(result.source)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.white)
@@ -435,9 +434,9 @@ struct ISBNSearchResultRowView: View {
                             )
                     }
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 24))
                     .foregroundColor(.green)

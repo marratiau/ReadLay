@@ -5,7 +5,6 @@
 //  Created by Mateo Arratia on 7/13/25.
 //
 
-
 //
 //  CleanProgressBar.swift
 //  ReadLay
@@ -24,7 +23,7 @@ struct CleanProgressBar: View {
     let totalLabel: String
     let progressColor: Color
     let isCompleted: Bool
-    
+
     // Simplified init for reading progress
     init(
         currentPage: Int,
@@ -42,7 +41,7 @@ struct CleanProgressBar: View {
         self.progressColor = progressColor
         self.isCompleted = isCompleted
     }
-    
+
     // Full init for custom labels
     init(
         currentValue: Int,
@@ -63,34 +62,34 @@ struct CleanProgressBar: View {
         self.progressColor = progressColor
         self.isCompleted = isCompleted
     }
-    
+
     private var progressPercentage: Double {
         guard totalValue > 0 else { return 0 }
         return Double(currentValue) / Double(totalValue)
     }
-    
+
     private var targetPercentage: Double {
         guard totalValue > 0 else { return 0 }
         return Double(targetValue) / Double(totalValue)
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             let trackWidth = geometry.size.width
             let trackHeight: CGFloat = 8
             let dotSize: CGFloat = 16
-            
+
             VStack(spacing: 8) {
                 // Labels above track
                 labelsRow(trackWidth: trackWidth, dotSize: dotSize)
-                
+
                 // Progress track with dots
                 ZStack {
                     // Background track
                     RoundedRectangle(cornerRadius: trackHeight / 2)
                         .fill(Color.gray.opacity(0.2))
                         .frame(height: trackHeight)
-                    
+
                     // Progress fill
                     HStack {
                         RoundedRectangle(cornerRadius: trackHeight / 2)
@@ -102,10 +101,10 @@ struct CleanProgressBar: View {
                                 )
                             )
                             .frame(width: trackWidth * progressPercentage, height: trackHeight)
-                        
+
                         Spacer(minLength: 0)
                     }
-                    
+
                     // Dots overlay
                     dotsOverlay(trackWidth: trackWidth, dotSize: dotSize)
                 }
@@ -114,7 +113,7 @@ struct CleanProgressBar: View {
         }
         .frame(height: 40)
     }
-    
+
     private func labelsRow(trackWidth: CGFloat, dotSize: CGFloat) -> some View {
         HStack {
             // Start label
@@ -122,9 +121,9 @@ struct CleanProgressBar: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.secondary)
                 .frame(width: dotSize, alignment: .center)
-            
+
             Spacer()
-            
+
             // Target label (only if not at start or end)
             if targetPercentage > 0.1 && targetPercentage < 0.9 {
                 Text(targetLabel)
@@ -132,9 +131,9 @@ struct CleanProgressBar: View {
                     .foregroundColor(currentValue >= targetValue ? .green : progressColor)
                     .frame(width: dotSize, alignment: .center)
             }
-            
+
             Spacer()
-            
+
             // End label
             Text(totalLabel)
                 .font(.system(size: 10, weight: .bold))
@@ -142,7 +141,7 @@ struct CleanProgressBar: View {
                 .frame(width: dotSize, alignment: .center)
         }
     }
-    
+
     private func dotsOverlay(trackWidth: CGFloat, dotSize: CGFloat) -> some View {
         HStack {
             // Start dot
@@ -152,9 +151,9 @@ struct CleanProgressBar: View {
                 color: .gray,
                 size: dotSize
             )
-            
+
             Spacer()
-            
+
             // Target dot (only show if meaningful position)
             if targetPercentage > 0.1 && targetPercentage < 0.9 {
                 progressDot(
@@ -164,9 +163,9 @@ struct CleanProgressBar: View {
                     size: dotSize
                 )
             }
-            
+
             Spacer()
-            
+
             // End dot
             progressDot(
                 isActive: isCompleted,
@@ -176,7 +175,7 @@ struct CleanProgressBar: View {
             )
         }
     }
-    
+
     private func progressDot(
         isActive: Bool,
         isCompleted: Bool,
@@ -207,39 +206,39 @@ struct DailyProgressBar: View {
     let currentProgress: Int
     let dailyGoal: Int
     let isCompleted: Bool
-    
+
     private var progressPercentage: Double {
         guard dailyGoal > 0 else { return 0 }
         return min(Double(currentProgress) / Double(dailyGoal), 1.0)
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             let trackWidth = geometry.size.width
             let trackHeight: CGFloat = 8
             let dotSize: CGFloat = 16
-            
+
             VStack(spacing: 8) {
                 // Simple labels
                 HStack {
                     Text("0")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.secondary)
-                    
+
                     Spacer()
-                    
+
                     Text("\(dailyGoal)")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(isCompleted ? .green : .blue)
                 }
-                
+
                 // Clean track
                 ZStack {
                     // Background
                     RoundedRectangle(cornerRadius: trackHeight / 2)
                         .fill(Color.gray.opacity(0.2))
                         .frame(height: trackHeight)
-                    
+
                     // Progress
                     HStack {
                         RoundedRectangle(cornerRadius: trackHeight / 2)
@@ -251,19 +250,19 @@ struct DailyProgressBar: View {
                                 )
                             )
                             .frame(width: trackWidth * progressPercentage, height: trackHeight)
-                        
+
                         Spacer(minLength: 0)
                     }
-                    
+
                     // End dots only
                     HStack {
                         Circle()
                             .fill(Color.white)
                             .frame(width: dotSize, height: dotSize)
                             .overlay(Circle().stroke(Color.gray, lineWidth: 2))
-                        
+
                         Spacer()
-                        
+
                         Circle()
                             .fill(isCompleted ? .green : Color.white)
                             .frame(width: dotSize, height: dotSize)

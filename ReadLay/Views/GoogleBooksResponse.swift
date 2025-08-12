@@ -32,39 +32,39 @@ struct ImageLinks: Codable {
 
 class GoogleBooksAPI: ObservableObject {
     static let shared = GoogleBooksAPI()
-    
+
     private let baseURL = "https://www.googleapis.com/books/v1/volumes"
-    
+
     func searchBooks(query: String) async throws -> [GoogleBook] {
         guard !query.isEmpty else { return [] }
-        
+
         let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let urlString = "\(baseURL)?q=\(encodedQuery)&maxResults=10"
-        
+
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)
         }
-        
+
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try JSONDecoder().decode(GoogleBooksResponse.self, from: data)
-        
+
         return response.items ?? []
     }
-    
+
     // MARK: - ISBN Search Method
     func searchByISBN(isbn: String) async throws -> GoogleBook? {
         let cleanedISBN = isbn.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: " ", with: "")
         guard !cleanedISBN.isEmpty else { return nil }
-        
+
         let urlString = "\(baseURL)?q=isbn:\(cleanedISBN)"
-        
+
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)
         }
-        
+
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try JSONDecoder().decode(GoogleBooksResponse.self, from: data)
-        
+
         return response.items?.first
     }
 }
