@@ -24,36 +24,10 @@ struct DailyBetsView: View {
                 }
             }
 
-            // Continue Reading Confirmation Overlay
-            if sessionViewModel.showingStartPageConfirmation,
-               let session = sessionViewModel.currentSession,
-               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
-                ContinueReadingConfirmationView(
-                    sessionViewModel: sessionViewModel,
-                    book: bet.book,
-                    nextPage: sessionViewModel.calculatedNextPage
-                ) {
-                    // onConfirm callback - no additional action needed
-                }
-                .transition(.opacity)
-            }
+            // NOTE: StartingPageInputView and ContinueReadingConfirmationView are REMOVED
+            // We go directly to the timer when "Start Reading" is clicked
 
-            // ADDED: Starting Page Input Overlay (THIS WAS MISSING - this is why the button wasn't working!)
-            if sessionViewModel.showingStartPageInput,
-               let session = sessionViewModel.currentSession,
-               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
-                StartingPageInputView(
-                    sessionViewModel: sessionViewModel,
-                    book: bet.book,
-                    lastReadPage: readSlipViewModel.getLastReadPage(for: bet.betId)
-                ) { startingPage in
-                    // onStart callback - start the timer view
-                    print("DEBUG: Starting reading from page \(startingPage)")
-                }
-                .transition(.opacity)
-            }
-
-            // Reading Timer Overlay
+            // Reading Timer Overlay - Shows immediately after clicking "Start Reading"
             if sessionViewModel.isReading,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -62,7 +36,7 @@ struct DailyBetsView: View {
                     .zIndex(1000)
             }
 
-            // Ending Page Input Overlay
+            // Ending Page Input Overlay - Shows after stopping the timer
             if sessionViewModel.showingEndPageInput,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -75,7 +49,7 @@ struct DailyBetsView: View {
                 .transition(.opacity)
             }
 
-            // Comment Input Overlay
+            // Comment Input Overlay - Optional comments after ending page
             if sessionViewModel.showingCommentInput,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -93,8 +67,6 @@ struct DailyBetsView: View {
         .onReceive(readSlipViewModel.$placedBets.combineLatest(readSlipViewModel.$dailyProgress)) { placedBets, _ in
             dailyBetsViewModel.updateDailyBetsWithMultiDay(from: placedBets, readSlipViewModel: readSlipViewModel)
         }
-        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingStartPageConfirmation)
-        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingStartPageInput)
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.isReading)
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingEndPageInput)
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingCommentInput)
@@ -104,7 +76,7 @@ struct DailyBetsView: View {
     private func handleSessionCompletion(endingPage: Int) {
         guard let session = sessionViewModel.currentSession else { return }
 
-        // Update reading progress first
+        // Update reading progress
         readSlipViewModel.updateReadingProgress(
             for: session.betId,
             startingPage: session.startingPage,
@@ -114,20 +86,16 @@ struct DailyBetsView: View {
         // Set ending page in session
         sessionViewModel.setEndingPage(endingPage)
 
-        print("DEBUG: Session completed - Starting: \(session.startingPage), Ending: \(endingPage), Pages: \(session.pagesRead)")
-        print("DEBUG: Journal entries before: \(readSlipViewModel.journalEntries.count)")
-
+        print("DEBUG: Session completed - Starting: \(session.startingPage), Ending: \(endingPage)")
+        
         // Transition to comment input
-        // The comment input will handle final session processing
     }
 
-    // MARK: - Bets List (ENHANCED for Multi-Day with Better Logic)
+    // MARK: - Bets List
     private var betsListView: some View {
         LazyVStack(spacing: 16) {
-            // Group daily bets by book
             ForEach(groupedDailyBets, id: \.0) { bookTitle, betsForBook in
                 VStack(spacing: 12) {
-                    // Book title header (if multiple days)
                     if betsForBook.count > 1 {
                         HStack {
                             Text(bookTitle)
@@ -138,7 +106,6 @@ struct DailyBetsView: View {
                         .padding(.horizontal, 20)
                     }
 
-                    // UPDATED: Show days in correct order and handle progression
                     ForEach(betsForBook.sorted { $0.dayNumber < $1.dayNumber }) { bet in
                         DailyBetRowView(
                             bet: bet,
@@ -150,20 +117,6 @@ struct DailyBetsView: View {
                             }
                         )
                         .environmentObject(readSlipViewModel)
-                        .onAppear {
-                            // TEMPORARY DEBUG: Print what's happening with DailyBets
-                            print("🔍 DailyBet Debug:")
-                            print("  Book: \(bet.book.title)")
-                            print("  Reading range: \(bet.book.readingStartPage)-\(bet.book.readingEndPage)")
-                            print("  Effective pages: \(bet.book.effectiveTotalPages)")
-                            print("  Day \(bet.dayNumber) range: \(bet.dayStartPage)-\(bet.dayEndPage)")
-                            print("  Daily goal: \(bet.dailyGoal)")
-                            print("  Current progress: \(bet.currentProgress)")
-                            print("  Current page position: \(readSlipViewModel.getCurrentPagePosition(for: bet.betId))")
-                            print("  Last read page: \(readSlipViewModel.getLastReadPage(for: bet.betId))")
-                            print("  Page range text: \(bet.pageRange)")
-                            print("---")
-                        }
                     }
                 }
             }
@@ -178,28 +131,39 @@ struct DailyBetsView: View {
         return grouped.map { ($0.key, $0.value) }.sorted { $0.0 < $1.0 }
     }
 
-    // UPDATED: Handle starting reading for any day
+    // UPDATED: Direct start without page input
     private func handleStartReading(for bet: DailyBet) {
         let lastReadPage = readSlipViewModel.getLastReadPage(for: bet.betId)
-        print("DEBUG: handleStartReading called for bet \(bet.betId), lastReadPage: \(lastReadPage)")
-        sessionViewModel.startReadingSession(
+        
+        // Automatically determine the starting page
+        let startingPage: Int
+        if lastReadPage <= bet.book.readingStartPage {
+            // First session - use the book's configured starting page
+            startingPage = bet.book.readingStartPage
+            print("DEBUG: First reading session, starting at page \(startingPage)")
+        } else {
+            // Continuing - use the next page after last read
+            startingPage = lastReadPage + 1
+            print("DEBUG: Continuing from page \(startingPage)")
+        }
+        
+        // Use the new direct start method - timer starts immediately
+        sessionViewModel.startReadingSessionDirect(
             for: bet.betId,
             book: bet.book,
-            lastReadPage: lastReadPage
+            startingPage: startingPage
         )
     }
 
-    // UPDATED: Handle starting next day - just reveals next day, doesn't force reading
+    // Handle starting next day
     private func handleStartNextDay(for bet: DailyBet) {
         print("DEBUG: Starting next day for bet \(bet.betId)")
 
-        // Find the reading bet
         guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else {
             print("DEBUG: No reading bet found")
             return
         }
 
-        // Check if current day is completed
         let currentPage = readSlipViewModel.getCurrentPagePosition(for: bet.betId)
         let currentDayTarget = readingBet.pagesPerDay * readingBet.currentDay
 
@@ -208,16 +172,12 @@ struct DailyBetsView: View {
             return
         }
 
-        // Check if there are more days
         guard readingBet.currentDay < readingBet.totalDays else {
             print("DEBUG: Already on final day")
             return
         }
 
-        // This should trigger the ViewModel to reveal the next day
-        // The actual day progression logic should be handled in the ViewModel
         readSlipViewModel.startNextDay(for: bet.betId)
-
         print("DEBUG: Next day revealed for bet \(bet.betId)")
     }
 

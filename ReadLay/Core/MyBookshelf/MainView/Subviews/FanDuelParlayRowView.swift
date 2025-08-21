@@ -5,13 +5,13 @@ import SwiftUI
 struct FanDuelParlayRowView: View {
     let book: Book
     var onClose: () -> Void
-    var onBookUpdated: ((Book) -> Void)? // ADDED: Callback to update the original book
+    var onBookUpdated: ((Book) -> Void)?
     var onNavigateToActiveBets: (() -> Void)?
+    var onEditPreferences: (() -> Void)?  // ADDED: Callback to edit preferences
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var selectedOdds: String?
 
-    // Reading preferences state
-    @State private var showingReadingPreferences = false
+    // REMOVED: showingReadingPreferences state - no longer needed
     @State private var currentBook: Book
 
     // Custom timeframe state
@@ -27,12 +27,18 @@ struct FanDuelParlayRowView: View {
     @FocusState private var weekFieldFocused: Bool
     @FocusState private var monthFieldFocused: Bool
 
-    init(book: Book, onClose: @escaping () -> Void, onBookUpdated: ((Book) -> Void)? = nil, onNavigateToActiveBets: (() -> Void)? = nil, readSlipViewModel: ReadSlipViewModel) {
+    init(book: Book,
+         onClose: @escaping () -> Void,
+         onBookUpdated: ((Book) -> Void)? = nil,
+         onNavigateToActiveBets: (() -> Void)? = nil,
+         onEditPreferences: (() -> Void)? = nil,  // ADDED
+         readSlipViewModel: ReadSlipViewModel) {
         self.book = book
         self._currentBook = State(initialValue: book)
         self.onClose = onClose
-        self.onBookUpdated = onBookUpdated // ADDED
+        self.onBookUpdated = onBookUpdated
         self.onNavigateToActiveBets = onNavigateToActiveBets
+        self.onEditPreferences = onEditPreferences  // ADDED
         self.readSlipViewModel = readSlipViewModel
     }
 
@@ -89,13 +95,7 @@ struct FanDuelParlayRowView: View {
                 .foregroundColor(.goodreadsBrown)
             }
         }
-        .sheet(isPresented: $showingReadingPreferences) {
-            QuickPageSetupView(book: $currentBook)
-                .onDisappear {
-                    // ADDED: When sheet closes, update the parent with changes
-                    onBookUpdated?(currentBook)
-                }
-        }
+        // REMOVED: .sheet presentation - no longer needed here
     }
 
     // MARK: - Book Cover
@@ -140,10 +140,10 @@ struct FanDuelParlayRowView: View {
                     .foregroundColor(.goodreadsBrown)
                     .lineLimit(1)
 
-                // Setup button
+                // Setup button - CHANGED: Now calls the callback instead of showing sheet
                 Button(action: {
                     hideKeyboard()
-                    showingReadingPreferences = true
+                    onEditPreferences?()  // CHANGED: Call the parent's handler
                 }) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 10))

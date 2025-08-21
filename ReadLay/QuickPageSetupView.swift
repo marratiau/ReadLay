@@ -7,6 +7,13 @@
 
 
 
+//
+//  QuickPageSetupView.swift
+//  ReadLay
+//
+//  Created by Mateo Arratia on 7/13/25.
+//
+
 import SwiftUI
 
 // MARK: - Quick Page Setup View
@@ -70,9 +77,7 @@ struct QuickPageSetupView: View {
                 }
             }
         }
-        .onTapGesture {
-            hideKeyboard()
-        }
+        // REMOVED: .onTapGesture that was causing conflicts
     }
 
     private var backgroundGradient: some View {
@@ -108,6 +113,11 @@ struct QuickPageSetupView: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.goodreadsAccent.opacity(0.8))
         }
+        // ADDED: Background tap to dismiss keyboard without interfering with buttons
+        .contentShape(Rectangle())
+        .onTapGesture {
+            hideKeyboard()
+        }
     }
 
     private var quickOptionsSection: some View {
@@ -123,8 +133,10 @@ struct QuickPageSetupView: View {
                         isSelected: preferences.pageCountingStyle == style,
                         effectivePages: calculateEffectivePages(for: style),
                         onSelect: {
-                            preferences.pageCountingStyle = style
-                            updatePreferencesForStyle(style)
+                            withAnimation(.easeInOut(duration: 0.2)) {  // ADDED: Animation for smoother transitions
+                                preferences.pageCountingStyle = style
+                                updatePreferencesForStyle(style)
+                            }
                         }
                     )
                 }
@@ -163,9 +175,7 @@ struct QuickPageSetupView: View {
                                         )
                                 )
                         )
-                        .onTapGesture {
-                            startPageFocused = true
-                        }
+                        // REMOVED: onTapGesture as it's redundant with focused()
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -192,9 +202,7 @@ struct QuickPageSetupView: View {
                                         )
                                 )
                         )
-                        .onTapGesture {
-                            endPageFocused = true
-                        }
+                        // REMOVED: onTapGesture as it's redundant with focused()
                 }
             }
 
@@ -214,6 +222,7 @@ struct QuickPageSetupView: View {
                         .stroke(Color.goodreadsAccent.opacity(0.2), lineWidth: 1)
                 )
         )
+        .transition(.opacity.combined(with: .scale))  // ADDED: Smooth transition
     }
 
     private var summarySection: some View {
@@ -264,7 +273,7 @@ struct QuickPageSetupView: View {
     private func hideKeyboard() {
         startPageFocused = false
         endPageFocused = false
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        // SIMPLIFIED: Removed UIApplication.shared.sendAction call as setting focus states to false is sufficient
     }
 
     private func updatePreferencesForStyle(_ style: ReadingPreferences.PageCountingStyle) {
@@ -375,6 +384,6 @@ struct QuickOptionCard: View {
                     )
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(PlainButtonStyle())  // IMPORTANT: Ensures button responds properly
     }
 }

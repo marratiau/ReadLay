@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+//Tab view that contains links to the 4 main views
 struct MainTabView: View {
     @StateObject private var readSlipViewModel = ReadSlipViewModel()
     @State private var selectedTab = 0

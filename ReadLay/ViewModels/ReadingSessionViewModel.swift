@@ -45,7 +45,7 @@ class ReadingSessionViewModel: ObservableObject {
         return lastReadPage < book.readingStartPage
     }
 
-    // FIXED: First session starts immediately, subsequent sessions show confirmation
+    // ORIGINAL METHOD - Keep for backward compatibility if needed elsewhere
     func startReadingSession(for betId: UUID, book: Book, lastReadPage: Int = 1) {
         print("DEBUG: Starting reading session - betId: \(betId), lastReadPage: \(lastReadPage), readingStartPage: \(book.readingStartPage)")
         
@@ -77,6 +77,35 @@ class ReadingSessionViewModel: ObservableObject {
             showingStartPageConfirmation = true
             showingStartPageInput = false
         }
+    }
+
+    // NEW METHOD: Start reading session directly without page input
+    func startReadingSessionDirect(for betId: UUID, book: Book, startingPage: Int) {
+        print("DEBUG: Starting DIRECT reading session - betId: \(betId), startingPage: \(startingPage)")
+        
+        self.currentBook = book
+        self.lastReadPage = startingPage
+        
+        // Create session with the predetermined starting page
+        var session = ReadingSession(betId: betId, startTime: Date())
+        session.startingPage = startingPage
+        currentSession = session
+        
+        // Skip all input views and go straight to reading
+        showingStartPageConfirmation = false
+        showingStartPageInput = false
+        showingEndPageInput = false
+        showingCommentInput = false
+        
+        // Start reading immediately
+        isReading = true
+        startTimer()
+        
+        // Set internal state
+        startingPageText = String(startingPage)
+        validationError = nil
+        
+        print("DEBUG: Direct session started - timer running from page \(startingPage)")
     }
 
     // ADDED: Method to confirm and start reading

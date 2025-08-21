@@ -8,11 +8,13 @@
 import SwiftUI
 
 struct MyBookshelfView: View {
-    @State private var books: [Book] = [] // Start with empty array
+    @State private var books: [Book] = []
     @State private var selectedBook: Book?
     @ObservedObject var readSlipViewModel: ReadSlipViewModel
     @State private var showingBookSearch = false
-    @State private var shouldNavigateToActiveBets = false // ADDED: Navigation state
+    @State private var shouldNavigateToActiveBets = false
+    @State private var showingPageSetup = false  // ADDED: Track if we're showing setup
+    @State private var bookReadyForBetting: Book?  // ADDED: Book that's completed setup
 
     init(readSlipViewModel: ReadSlipViewModel) {
         self.readSlipViewModel = readSlipViewModel
@@ -31,13 +33,37 @@ struct MyBookshelfView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingPageSetup) {  // ADDED: Sheet for page setup
+            if let book = selectedBook {
+                QuickPageSetupView(book: Binding(
+                    get: { book },
+                    set: { updatedBook in
+                        // Update the book in our array
+                        if let index = books.firstIndex(where: { $0.id == updatedBook.id }) {
+                            books[index] = updatedBook
+                            selectedBook = updatedBook
+                        }
+                    }
+                ))
+                .onDisappear {
+                    // When setup is complete, show betting view
+                    if let updatedBook = selectedBook {
+                        bookReadyForBetting = updatedBook
+                        showingPageSetup = false
+                    } else {
+                        // If cancelled, clear selection
+                        selectedBook = nil
+                    }
+                }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("BetsPlaced"))) { _ in
             // Auto-close bet row after placing bets
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 selectedBook = nil
+                bookReadyForBetting = nil
             }
         }
-        // ADDED: Navigation observer
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToActiveBets"))) { _ in
             shouldNavigateToActiveBets = true
         }
@@ -62,7 +88,7 @@ struct MyBookshelfView: View {
                     .font(.system(size: 28, weight: .bold, design: .serif))
                     .foregroundColor(.goodreadsBrown)
 
-                Text(books.isEmpty ? "Add books to get started" : "Tap a book to see reading odds")
+                Text(books.isEmpty ? "Add books to get started" : "Tap a book to set reading goals")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.goodreadsAccent)
             }
@@ -117,7 +143,7 @@ struct MyBookshelfView: View {
 
     private var booksScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) { // ADDED: Small gap between books (4px)
+            HStack(spacing: 4) {
                 existingBooks
                 addBookButton
             }
@@ -129,16 +155,25 @@ struct MyBookshelfView: View {
     private var existingBooks: some View {
         ForEach(books) { book in
             SpineView(book: book)
-                .scaleEffect(selectedBook?.id == book.id ? 1.06 : 1.0)
+                .scaleEffect(selectedBook?.id == book.id || bookReadyForBetting?.id == book.id ? 1.06 : 1.0)
                 .rotation3DEffect(
-                    .degrees(selectedBook?.id == book.id ? 3 : 0),
+                    .degrees(selectedBook?.id == book.id || bookReadyForBetting?.id == book.id ? 3 : 0),
                     axis: (x: 0, y: 1, z: 0)
                 )
-                // REMOVED: All shadows that create visual gaps between books
-                .zIndex(selectedBook?.id == book.id ? 1 : 0)
+                .zIndex(selectedBook?.id == book.id || bookReadyForBetting?.id == book.id ? 1 : 0)
                 .onTapGesture {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        selectedBook = (selectedBook?.id == book.id) ? nil : book
+                        if selectedBook?.id == book.id || bookReadyForBetting?.id == book.id {
+                            // Deselect if tapping the same book
+                            selectedBook = nil
+                            bookReadyForBetting = nil
+                            showingPageSetup = false
+                        } else {
+                            // Select new book and show setup
+                            selectedBook = book
+                            bookReadyForBetting = nil
+                            showingPageSetup = true  // CHANGED: Show setup first
+                        }
                     }
                 }
         }
@@ -160,7 +195,7 @@ struct MyBookshelfView: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: 30, height: 155) // FIXED: Standard medium width
+                    .frame(width: 30, height: 155)
                     .overlay(
                         RoundedRectangle(cornerRadius: 3)
                             .stroke(Color.goodreadsAccent.opacity(0.5), lineWidth: 1)
@@ -213,7 +248,7 @@ struct MyBookshelfView: View {
     // MARK: - Selected Book Section
     private var selectedBookSection: some View {
         VStack {
-            if let book = selectedBook {
+            if let book = bookReadyForBetting {  // CHANGED: Show betting view only after setup
                 selectedBookDetails(book: book)
             } else if books.isEmpty {
                 emptyState
@@ -230,23 +265,26 @@ struct MyBookshelfView: View {
             onClose: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     selectedBook = nil
+                    bookReadyForBetting = nil
                 }
             },
-            // ADDED: Callback to update the book in the array
             onBookUpdated: { updatedBook in
                 if let index = books.firstIndex(where: { $0.id == updatedBook.id }) {
                     books[index] = updatedBook
-                    selectedBook = updatedBook  // Update selected book too
+                    bookReadyForBetting = updatedBook  // Update ready book too
                 }
             },
             onNavigateToActiveBets: {
-                // ADDED: Navigation to active bets
                 NotificationCenter.default.post(name: NSNotification.Name("NavigateToActiveBets"), object: nil)
-
-                // Close the selected book
+                
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     selectedBook = nil
+                    bookReadyForBetting = nil
                 }
+            },
+            onEditPreferences: {  // ADDED: Allow re-editing preferences
+                selectedBook = book
+                showingPageSetup = true
             },
             readSlipViewModel: readSlipViewModel
         )
@@ -308,7 +346,7 @@ struct MyBookshelfView: View {
             Image(systemName: "hand.tap.fill")
                 .font(.title3)
                 .foregroundColor(.goodreadsAccent.opacity(0.5))
-            Text("Select a book to view reading odds")
+            Text("Select a book to set up reading goals")  // CHANGED: Updated text
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.goodreadsAccent.opacity(0.7))
         }
