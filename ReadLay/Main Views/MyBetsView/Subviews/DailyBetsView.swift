@@ -24,10 +24,23 @@ struct DailyBetsView: View {
                 }
             }
 
-            // NOTE: StartingPageInputView and ContinueReadingConfirmationView are REMOVED
-            // We go directly to the timer when "Start Reading" is clicked
+            // Continue Reading Confirmation - Shows when continuing (not first time)
+            if sessionViewModel.showingStartPageConfirmation,
+               let session = sessionViewModel.currentSession,
+               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
+                ContinueReadingConfirmationView(
+                    sessionViewModel: sessionViewModel,
+                    book: bet.book,
+                    nextPage: sessionViewModel.calculatedNextPage
+                ) {
+                    // onConfirm callback - confirmation view already started the session
+                    // Just hide the confirmation view
+                }
+                .transition(.opacity)
+                .zIndex(999)
+            }
 
-            // Reading Timer Overlay - Shows immediately after clicking "Start Reading"
+            // Reading Timer Overlay - Shows after confirmation or immediately for first read
             if sessionViewModel.isReading,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -36,7 +49,7 @@ struct DailyBetsView: View {
                     .zIndex(1000)
             }
 
-            // Ending Page Input Overlay - Shows after stopping the timer
+            // Ending Page Input Overlay
             if sessionViewModel.showingEndPageInput,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -49,7 +62,7 @@ struct DailyBetsView: View {
                 .transition(.opacity)
             }
 
-            // Comment Input Overlay - Optional comments after ending page
+            // Comment Input Overlay
             if sessionViewModel.showingCommentInput,
                let session = sessionViewModel.currentSession,
                let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
@@ -58,7 +71,6 @@ struct DailyBetsView: View {
                     readSlipViewModel: readSlipViewModel,
                     book: bet.book
                 ) {
-                    // Session completion handled in CommentInputView
                     sessionViewModel.cancelSession()
                 }
                 .transition(.opacity)
@@ -67,6 +79,7 @@ struct DailyBetsView: View {
         .onReceive(readSlipViewModel.$placedBets.combineLatest(readSlipViewModel.$dailyProgress)) { placedBets, _ in
             dailyBetsViewModel.updateDailyBetsWithMultiDay(from: placedBets, readSlipViewModel: readSlipViewModel)
         }
+        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingStartPageConfirmation)
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.isReading)
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingEndPageInput)
         .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingCommentInput)
@@ -76,19 +89,15 @@ struct DailyBetsView: View {
     private func handleSessionCompletion(endingPage: Int) {
         guard let session = sessionViewModel.currentSession else { return }
 
-        // Update reading progress
         readSlipViewModel.updateReadingProgress(
             for: session.betId,
             startingPage: session.startingPage,
             endingPage: endingPage
         )
 
-        // Set ending page in session
         sessionViewModel.setEndingPage(endingPage)
 
         print("DEBUG: Session completed - Starting: \(session.startingPage), Ending: \(endingPage)")
-        
-        // Transition to comment input
     }
 
     // MARK: - Bets List
@@ -125,37 +134,39 @@ struct DailyBetsView: View {
         .padding(.vertical, 16)
     }
 
-    // Group daily bets by book
     private var groupedDailyBets: [(String, [DailyBet])] {
         let grouped = Dictionary(grouping: dailyBetsViewModel.dailyBets) { $0.book.title }
         return grouped.map { ($0.key, $0.value) }.sorted { $0.0 < $1.0 }
     }
 
-    // UPDATED: Direct start without page input
+    // UPDATED: Different behavior for first read vs continue
     private func handleStartReading(for bet: DailyBet) {
         let lastReadPage = readSlipViewModel.getLastReadPage(for: bet.betId)
         
-        // Automatically determine the starting page
-        let startingPage: Int
         if lastReadPage <= bet.book.readingStartPage {
-            // First session - use the book's configured starting page
-            startingPage = bet.book.readingStartPage
-            print("DEBUG: First reading session, starting at page \(startingPage)")
+            // FIRST TIME READING - Start immediately without confirmation
+            let startingPage = bet.book.readingStartPage
+            print("DEBUG: First reading session, starting directly at page \(startingPage)")
+            
+            // Use direct start method to bypass confirmation
+            sessionViewModel.startReadingSessionDirect(
+                for: bet.betId,
+                book: bet.book,
+                startingPage: startingPage
+            )
         } else {
-            // Continuing - use the next page after last read
-            startingPage = lastReadPage + 1
-            print("DEBUG: Continuing from page \(startingPage)")
+            // CONTINUE READING - Use the normal flow which will show confirmation
+            print("DEBUG: Continue reading, showing confirmation. Last read: \(lastReadPage)")
+            
+            // This will trigger the confirmation view via showingStartPageConfirmation
+            sessionViewModel.startReadingSession(
+                for: bet.betId,
+                book: bet.book,
+                lastReadPage: lastReadPage
+            )
         }
-        
-        // Use the new direct start method - timer starts immediately
-        sessionViewModel.startReadingSessionDirect(
-            for: bet.betId,
-            book: bet.book,
-            startingPage: startingPage
-        )
     }
 
-    // Handle starting next day
     private func handleStartNextDay(for bet: DailyBet) {
         print("DEBUG: Starting next day for bet \(bet.betId)")
 
