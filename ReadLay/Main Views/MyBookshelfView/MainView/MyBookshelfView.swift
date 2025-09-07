@@ -25,6 +25,9 @@ struct MyBookshelfView: View {
     // Animation states for selected books
     @State private var bookScales: [UUID: CGFloat] = [:]
     @State private var bookRotations: [UUID: Double] = [:]
+
+    // NEW: holds the book being edited so we can present the preferences sheet
+    @State private var editingBook: Book?   // <<< ADDED
     
     init(readSlipViewModel: ReadSlipViewModel) {
         self.readSlipViewModel = readSlipViewModel
@@ -68,6 +71,21 @@ struct MyBookshelfView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToActiveBets"))) { _ in
             shouldNavigateToActiveBets = true
+        }
+        // NEW: preferences sheet driven by the tapped row’s book
+        .sheet(item: $editingBook) { initial in    // <<< ADDED
+            QuickPageSetupView(
+                book: Binding(
+                    get: { initial },
+                    set: { updated in editingBook = updated }
+                ),
+                onSave: { final in
+                    if let idx = books.firstIndex(where: { $0.id == final.id }) {
+                        books[idx] = final
+                    }
+                    editingBook = nil
+                }
+            )
         }
     }
     
@@ -346,11 +364,9 @@ struct MyBookshelfView: View {
                                     }
                                 },
                                 onEditPreferences: {
-                                    // Show preferences editor for this book
+                                    // CHANGED: open the QuickPageSetupView for this specific book
                                     if let bookToEdit = books.first(where: { $0.id == bookId }) {
-                                        // You could show a sheet here to edit preferences
-                                        // For now, we'll just log it
-                                        print("Edit preferences for book: \(bookToEdit.title)")
+                                        editingBook = bookToEdit     // <<< CHANGED
                                     }
                                 },
                                 readSlipViewModel: readSlipViewModel
