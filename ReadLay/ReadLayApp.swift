@@ -9,15 +9,16 @@ import SwiftUI
 
 @main
 struct ReadLayApp: App {
-    let persistenceController = PersistenceController.shared
+    let persistence = PersistenceController.shared
 
     var body: some Scene {
         WindowGroup {
             MainTabView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .environment(\.managedObjectContext, persistence.container.viewContext)
         }
     }
 }
+
 
 #Preview {
     MainTabView()

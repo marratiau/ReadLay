@@ -8,372 +8,179 @@
 import SwiftUI
 
 struct DailyBetRowView: View {
-    let bet: DailyBet
-    let onStartReading: () -> Void
-    let onStartNextDay: (() -> Void)?
-
+    let dailyBet: DailyBet
     @EnvironmentObject var readSlipViewModel: ReadSlipViewModel
-
+    let onStartReading: () -> Void  // ADD THIS
+    @State private var isExpanded: Bool = false
+    
+    private var progressInfo: (current: Int, required: Int, total: Int) {
+        let current = readSlipViewModel.getDailyProgress(for: dailyBet.betId)
+        return (current, dailyBet.pagesRequired, dailyBet.pagesRequired)
+    }
+    
+    private var progressPercentage: Double {
+        guard progressInfo.required > 0 else { return 0 }
+        return Double(progressInfo.current) / Double(progressInfo.required)
+    }
+    
+    private var isCompleted: Bool {
+        return progressInfo.current >= progressInfo.required
+    }
+    
     private var progressStatus: ReadingBet.ProgressStatus {
-        return readSlipViewModel.getProgressStatus(for: bet.betId)
+        return readSlipViewModel.getProgressStatus(for: dailyBet.betId)
     }
-
-    private var canGetAhead: Bool {
-        return readSlipViewModel.canGetAhead(for: bet.betId)
-    }
-
-    private var progressInfo: (actual: Int, expected: Int, status: ReadingBet.ProgressStatus) {
-        return readSlipViewModel.getProgressInfo(for: bet.betId)
-    }
-
-    // UPDATED: More precise day completion logic
-    private var isDailyGoalCompleted: Bool {
-        return bet.isCompleted || bet.currentProgress >= bet.dailyGoal
-    }
-
-    // Check if this is a completed previous day
-    private var isPreviousCompletedDay: Bool {
-        guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else { return false }
-        return bet.dayNumber < readingBet.currentDay && isDailyGoalCompleted
-    }
-
-    // Check if this is the current active day
-    private var isCurrentDay: Bool {
-        guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else { return false }
-        return bet.dayNumber == readingBet.currentDay
-    }
-
-    // Check if this is a future day that can be started
-    private var canStartThisDay: Bool {
-        return bet.isNextDay && isDailyGoalCompleted
-    }
-
-    // Check if should show overall progress (hide for completed days)
-    private var shouldShowOverallProgress: Bool {
-        return !isPreviousCompletedDay
-    }
-
+    
     var body: some View {
-        VStack(spacing: 16) {
-            headerRow
-            progressSection
-            actionButton
+        VStack(spacing: 12) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("Day \(dailyBet.dayNumber)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.goodreadsAccent)
+                        
+                        if dailyBet.isNextDay {
+                            Text("(Tomorrow)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
+                    Text(dailyBet.book.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.goodreadsBrown)
+                        .lineLimit(2)
+                    
+                    if let author = dailyBet.book.author {
+                        Text("by \(author)")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.goodreadsAccent)
+                    }
+                }
+                
+                Spacer()
+                
+                statusBadge
+            }
+            
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.goodreadsAccent.opacity(0.2))
+                        .frame(height: 8)
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isCompleted ? Color.green : Color.goodreadsBrown)
+                        .frame(width: max(0, geometry.size.width * progressPercentage), height: 8)
+                }
+            }
+            .frame(height: 8)
+            
+            // Progress text
+            HStack {
+                Text("\(progressInfo.current) / \(dailyBet.pagesRequired) pages")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.goodreadsBrown)
+                
+                Spacer()
+                
+                Text("\(Int(progressPercentage * 100))%")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(isCompleted ? .green : .goodreadsBrown)
+            }
+            
+            // Action button
+            if !dailyBet.isNextDay {
+                Button(action: onStartReading) {  // USE THE PASSED CLOSURE
+                    HStack {
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "book.fill")
+                            .font(.system(size: 14))
+                        
+                        Text(isCompleted ? "Completed" : "Start Reading")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(isCompleted ? .green : .white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(isCompleted ? Color.green.opacity(0.2) : Color.goodreadsBrown)
+                    )
+                }
+                .disabled(isCompleted)
+            }
         }
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(backgroundColorForDayState)
+                .fill(isCompleted ? Color.green.opacity(0.05) : Color.goodreadsWarm)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(borderColorForDayState, lineWidth: 1)
+                        .stroke(
+                            isCompleted ? Color.green.opacity(0.3) : Color.goodreadsAccent.opacity(0.2),
+                            lineWidth: 1
+                        )
                 )
-                .shadow(color: Color.goodreadsBrown.opacity(0.1), radius: 4, x: 0, y: 2)
         )
-        .opacity(isPreviousCompletedDay ? 0.85 : 1.0)
     }
-
-    // Dynamic background based on day state
-    private var backgroundColorForDayState: Color {
-        if isPreviousCompletedDay {
-            return Color.green.opacity(0.1)
-        } else if isCurrentDay && isDailyGoalCompleted {
-            return Color.blue.opacity(0.1)
-        } else if canStartThisDay {
-            return Color.orange.opacity(0.1)
-        } else {
-            return Color.goodreadsWarm
-        }
-    }
-
-    private var borderColorForDayState: Color {
-        if isPreviousCompletedDay {
-            return Color.green.opacity(0.4)
-        } else if isCurrentDay && isDailyGoalCompleted {
-            return Color.blue.opacity(0.4)
-        } else if canStartThisDay {
-            return Color.orange.opacity(0.4)
-        } else {
-            return statusBorderColor
-        }
-    }
-
-    // Status-based styling
-    private var statusBorderColor: Color {
-        switch progressStatus {
-        case .completed:
-            return Color.green.opacity(0.4)
-        case .ahead:
-            return Color.blue.opacity(0.4)
-        case .behind:
-            return Color.orange.opacity(0.4)
-        case .overdue:
-            return Color.red.opacity(0.4)
-        case .onTrack:
-            return Color.goodreadsAccent.opacity(0.2)
-        }
-    }
-
-    private var statusColor: Color {
-        if isPreviousCompletedDay {
-            return .green
-        } else if isDailyGoalCompleted && canGetAhead {
-            return .blue
-        }
-
-        switch progressStatus {
-        case .completed: return .green
-        case .ahead: return .blue
-        case .behind: return .orange
-        case .overdue: return .red
-        case .onTrack: return .goodreadsAccent
-        }
-    }
-
-    private var statusText: String {
-        if isPreviousCompletedDay {
-            return "COMPLETED"
-        } else if isDailyGoalCompleted && canGetAhead {
-            return "CAN START NEXT"
-        }
-
-        switch progressStatus {
-        case .completed: return "COMPLETED"
-        case .ahead: return "AHEAD"
-        case .behind: return "BEHIND"
-        case .overdue: return "OVERDUE"
-        case .onTrack: return "ON TRACK"
-        }
-    }
-
-    // MARK: - Header Row
-    private var headerRow: some View {
-        HStack(spacing: 12) {
-            // Day status indicator
-            dayStatusIndicator
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Day \(bet.dayNumber) Goal")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.goodreadsBrown)
-
-                HStack(spacing: 8) {
-                    progressCircle
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(bet.book.title)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.goodreadsBrown)
-                            .lineLimit(1)
-
-                        Text("Read \(bet.dailyGoal) pages (\(bet.pageRange))")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.goodreadsAccent)
-                    }
-                }
-            }
-
-            Spacer()
-
-            // Status indicator
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(statusText)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(statusColor)
-                    )
-
-                dayIndicator
-            }
-        }
-    }
-
-    // Day status indicator (TC badge equivalent)
-    private var dayStatusIndicator: some View {
-        Text("\(bet.dayNumber)")
-            .font(.system(size: 12, weight: .bold))
-            .foregroundColor(.white)
-            .frame(width: 28, height: 28)
-            .background(
-                Circle()
-                    .fill(dayIndicatorColor)
-            )
-    }
-
-    private var dayIndicatorColor: Color {
-        if isPreviousCompletedDay {
-            return .green
-        } else if isCurrentDay {
-            return .goodreadsBrown
-        } else if canStartThisDay {
-            return .orange
-        } else {
-            return .goodreadsAccent.opacity(0.6)
-        }
-    }
-
-    private var progressCircle: some View {
-        Circle()
-            .stroke(
-                isDailyGoalCompleted ? Color.green : statusColor.opacity(0.6),
-                lineWidth: 2
-            )
-            .fill(isDailyGoalCompleted ? Color.green.opacity(0.1) : Color.clear)
-            .frame(width: 20, height: 20)
-            .overlay(
-                Image(systemName: isDailyGoalCompleted ? "checkmark" : "")
-                    .font(.system(size: 10, weight: .bold))
+    
+    private var statusBadge: some View {
+        Group {
+            switch progressStatus {
+            case .onTrack:
+                Label("On Track", systemImage: "checkmark.circle")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.green)
-            )
-    }
-
-    private var dayIndicator: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("of \(bet.totalDays) days")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.goodreadsAccent.opacity(0.7))
-        }
-    }
-
-    // MARK: - Progress Section (UPDATED WITH CLEAN PROGRESS BAR)
-    private var progressSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Daily progress with clean bar
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Today's Progress")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.goodreadsAccent)
-                    Spacer()
-                    Text("\(bet.currentProgress)/\(bet.dailyGoal) pages")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.goodreadsBrown)
-                }
-
-                // UPDATED: Clean daily progress bar
-                DailyProgressBar(
-                    currentProgress: bet.currentProgress,
-                    dailyGoal: bet.dailyGoal,
-                    isCompleted: isDailyGoalCompleted
-                )
-            }
-
-            // CONDITIONAL: Only show overall progress if not a completed previous day
-            if shouldShowOverallProgress {
-                HStack {
-                    Text("Overall Progress")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.goodreadsAccent)
-                    Spacer()
-                    Text("\(progressInfo.actual)/\(bet.book.effectiveTotalPages) pages")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.goodreadsBrown)
-                }
-            }
-        }
-    }
-
-    // MARK: - Action Button
-    private var actionButton: some View {
-        Button(action: buttonAction) {
-            HStack(spacing: 8) {
-                Image(systemName: buttonIcon)
-                    .font(.system(size: 16, weight: .medium))
-                Text(buttonText)
-                    .font(.system(size: 16, weight: .semibold))
-            }
-            .foregroundColor(buttonTextColor)
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(buttonBackgroundColor)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(buttonBorderColor, lineWidth: 1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.green.opacity(0.1))
                     )
-            )
+            case .ahead:
+                Label("Ahead", systemImage: "arrow.up.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.blue.opacity(0.1))
+                    )
+            case .behind:
+                Label("Behind", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.orange.opacity(0.1))
+                    )
+            case .overdue:
+                Label("Overdue", systemImage: "exclamationmark.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.red.opacity(0.1))
+                    )
+            case .completed:
+                Label("Done", systemImage: "checkmark.seal.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.green.opacity(0.1))
+                    )
+            }
         }
-        .disabled(buttonIsDisabled)
-    }
-
-    // Button action logic
-    private func buttonAction() {
-        if isPreviousCompletedDay {
-            // Do nothing - completed days are inactive
-            return
-        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
-            // Start next day
-            onStartNextDay?()
-        } else {
-            // Start reading for this day
-            onStartReading()
-        }
-    }
-
-    // Button styling based on state
-    private var buttonIcon: String {
-        if isPreviousCompletedDay {
-            return "checkmark"
-        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
-            return "arrow.right.circle.fill"
-        } else if canStartThisDay {
-            return "play.circle.fill"
-        } else {
-            return "book.fill"
-        }
-    }
-
-    // MARK: - Action Button (Updated Logic)
-    private var buttonText: String {
-        if isPreviousCompletedDay {
-            return "Completed"
-        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
-            let nextDay = bet.dayNumber + 1
-            return nextDay <= bet.totalDays ? "Start Day \(nextDay)" : "All Days Complete"
-        } else if canStartThisDay {
-            return "Start Day \(bet.dayNumber)"
-        } else {
-            // FIXED: Check if this is the first reading session
-            let currentPagePosition = readSlipViewModel.getCurrentPagePosition(for: bet.betId)
-            let isFirstSession = currentPagePosition <= bet.book.readingStartPage
-            
-            return isFirstSession ? "Start Reading" : "Continue Reading"
-        }
-    }
-
-    private var buttonTextColor: Color {
-        if isPreviousCompletedDay {
-            return .goodreadsAccent
-        } else {
-            return .white
-        }
-    }
-
-    private var buttonBackgroundColor: Color {
-        if isPreviousCompletedDay {
-            return Color.goodreadsBeige.opacity(0.8)
-        } else if isCurrentDay && isDailyGoalCompleted && canGetAhead {
-            return Color.blue
-        } else if canStartThisDay {
-            return Color.orange
-        } else {
-            return Color.goodreadsBrown
-        }
-    }
-
-    private var buttonBorderColor: Color {
-        if isPreviousCompletedDay {
-            return Color.goodreadsAccent.opacity(0.3)
-        } else {
-            return Color.clear
-        }
-    }
-
-    private var buttonIsDisabled: Bool {
-        return isPreviousCompletedDay || progressStatus == .completed
     }
 }

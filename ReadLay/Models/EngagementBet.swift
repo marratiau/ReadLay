@@ -7,12 +7,21 @@
 
 import Foundation
 
-struct EngagementBet: Identifiable, Hashable {
+struct EngagementBet: Identifiable, Hashable, Equatable {
     let id: UUID
     let book: Book
     var goals: [EngagementGoal]
     let odds: String
     var wager: Double
+    
+    // Add these implementations
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: EngagementBet, rhs: EngagementBet) -> Bool {
+        return lhs.id == rhs.id
+    }
 
     var totalTargetCount: Int {
         return goals.reduce(0) { $0 + $1.targetCount }

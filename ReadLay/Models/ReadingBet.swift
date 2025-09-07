@@ -8,7 +8,7 @@
 import SwiftUI
 import Foundation
 
-struct ReadingBet: Identifiable, Hashable {
+struct ReadingBet: Identifiable, Hashable, Equatable {
     let id: UUID
     let book: Book
     let timeframe: String
@@ -149,6 +149,14 @@ struct ReadingBet: Identifiable, Hashable {
     private func parseOdds(_ odds: String) -> Int {
         let cleanOdds = odds.replacingOccurrences(of: "+", with: "")
         return Int(cleanOdds) ?? 150
+    }
+    // Add these implementations
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: ReadingBet, rhs: ReadingBet) -> Bool {
+        return lhs.id == rhs.id
     }
 }
 

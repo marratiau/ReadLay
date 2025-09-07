@@ -12,18 +12,11 @@ struct MyBetsView: View {
     private let tabs = ["DAILY", "ACTIVE", "SETTLED"]
     @State private var currentTime = Date()
 
-    // ADDED: Timer to update current time
-    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-
     var body: some View {
         VStack(spacing: 0) {
-            // Header with date/time
             headerSection
-
-            // Tab selector with proper width indicator
             tabSelectorSection
 
-            // Content based on selected tab
             TabView(selection: $selectedTab) {
                 DailyBetsView()
                     .tag(0)
@@ -47,18 +40,17 @@ struct MyBetsView: View {
             )
             .ignoresSafeArea()
         )
-        // FIXED: Navigation to active bets when triggered from bookshelf
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToActiveBets"))) { _ in
             DispatchQueue.main.async {
-                selectedTab = 1 // Switch to ACTIVE tab
+                selectedTab = 1
             }
         }
-        .onReceive(timer) { _ in
+        // FIXED: Only update when app becomes active, not every 60 seconds
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             currentTime = Date()
         }
     }
 
-    // MARK: - Tab Selector with Proper Width (FIXED)
     private var tabSelectorSection: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -78,14 +70,13 @@ struct MyBetsView: View {
             }
             .background(Color.goodreadsBeige.opacity(0.5))
 
-            // FIXED: Indicator that matches text width
             HStack(spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
                     VStack {
                         if selectedTab == index {
                             Rectangle()
                                 .fill(Color.goodreadsBrown)
-                                .frame(width: CGFloat(tabs[index].count * 8), height: 3) // Approximate text width
+                                .frame(width: CGFloat(tabs[index].count * 8), height: 3)
                                 .animation(.easeInOut(duration: 0.2), value: selectedTab)
                         } else {
                             Rectangle()
@@ -99,7 +90,6 @@ struct MyBetsView: View {
         }
     }
 
-    // ADDED: Header section with date/time
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
@@ -114,7 +104,6 @@ struct MyBetsView: View {
 
             Spacer()
 
-            // ADDED: Date and time display
             VStack(alignment: .trailing, spacing: 4) {
                 Text(formattedDate)
                     .font(.system(size: 14, weight: .semibold))
@@ -131,7 +120,6 @@ struct MyBetsView: View {
         .padding(.bottom, 20)
     }
 
-    // ADDED: Date and time formatters
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"

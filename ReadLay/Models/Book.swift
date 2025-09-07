@@ -4,10 +4,9 @@
 //
 //  Created by Mateo Arratia on 6/4/25.
 //
-
 import SwiftUI
 
-struct Book: Identifiable, Hashable {
+struct Book: Identifiable, Hashable, Equatable {
     let id: UUID
     let title: String
     let author: String?
@@ -17,95 +16,113 @@ struct Book: Identifiable, Hashable {
     let googleBooksId: String?
     let spineColor: Color
     let difficulty: ReadingDifficulty
-
-    // ADDED: Reading preferences for page tracking
+    //let categories: [String]?  // New: From API
+    //let firstPublishYear: Int?  // New: From Open Library for age-based difficulty
+    
+    // Fixed: Uncommented the preferencesCache since it's being used
+    private static var preferencesCache: [UUID: ReadingPreferences] = [:]
+    private static var effectiveTotalPagesCache: [UUID: Int] = [:]
+    private static var readingStartPageCache: [UUID: Int] = [:]
+    private static var readingEndPageCache: [UUID: Int] = [:]
+    private static var hasCustomReadingPreferencesCache: [UUID: Bool] = [:]
+    private static var readingPreferenceSummaryCache: [UUID: String] = [:]
+    private static var oddsCache: [UUID: [(String, String)]] = [:]
+    private static var journalOddsCache: [UUID: [(String, String)]] = [:]
+    
     var readingPreferences: ReadingPreferences {
         get {
-            // Load from UserDefaults
-            return ReadingPreferences.load(for: self.id) ?? ReadingPreferences.default(for: self)
+            // Check static cache first
+            if let cached = Book.preferencesCache[id] {
+                return cached
+            }
+            let prefs = ReadingPreferences.load(for: id) ?? ReadingPreferences.default(for: id, totalPages: totalPages)
+            // Store in static cache
+            Book.preferencesCache[id] = prefs
+            return prefs
         }
         set {
-            // Save to UserDefaults
-            newValue.save(for: self.id)
+            // Update static cache
+            Book.preferencesCache[id] = newValue
+            newValue.save(for: id)
         }
     }
-
-    // ADDED: Computed properties based on preferences
-    var effectiveTotalPages: Int {
-        let prefs = readingPreferences
-        if let customEnd = prefs.customEndPage, let customStart = prefs.customStartPage {
-            return max(0, customEnd - customStart + 1)
+    
+    // ADDED: Missing computed properties that other files are using
+    var readingStartPage: Int {
+        if let cached = Book.readingStartPageCache[id] {
+            return cached
         }
-
+        let prefs = readingPreferences
+        let result: Int
+        
+        switch prefs.pageCountingStyle {
+        case .inclusive, .mainOnly:
+            result = 1 + prefs.estimatedFrontMatterPages
+        case .custom:
+            result = prefs.customStartPage ?? 1
+        }
+        
+        Book.readingStartPageCache[id] = result
+        return result
+    }
+    
+    var readingEndPage: Int {
+        if let cached = Book.readingEndPageCache[id] {
+            return cached
+        }
+        let prefs = readingPreferences
+        let result: Int
+        
         switch prefs.pageCountingStyle {
         case .inclusive:
-            return totalPages
+            result = totalPages
         case .mainOnly:
-            return totalPages - prefs.estimatedFrontMatterPages - prefs.estimatedBackMatterPages
+            result = totalPages - prefs.estimatedBackMatterPages
+        case .custom:
+            result = prefs.customEndPage ?? totalPages
+        }
+        
+        Book.readingEndPageCache[id] = result
+        return result
+    }
+    
+    // Implement Hashable
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    // Implement Equatable
+    static func == (lhs: Book, rhs: Book) -> Bool {
+        return lhs.id == rhs.id
+    }
+    
+    var effectiveTotalPages: Int {
+        if let cached = Book.effectiveTotalPagesCache[id] {
+            return cached
+        }
+        let prefs = readingPreferences
+        let result: Int
+        
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            result = totalPages
+        case .mainOnly:
+            result = totalPages - prefs.estimatedFrontMatterPages - prefs.estimatedBackMatterPages
         case .custom:
             guard let start = prefs.customStartPage, let end = prefs.customEndPage else {
-                return totalPages
+                result = totalPages
+                break
             }
-            return max(0, end - start + 1)
+            result = max(0, end - start + 1)
         }
+        
+        Book.effectiveTotalPagesCache[id] = result
+        return result
     }
-
-    var readingStartPage: Int {
-        let prefs = readingPreferences
-        if let customStart = prefs.customStartPage {
-            return customStart
-        }
-
-        switch prefs.pageCountingStyle {
-        case .inclusive:
-            return 1
-        case .mainOnly:
-            return prefs.estimatedFrontMatterPages + 1
-        case .custom:
-            return prefs.customStartPage ?? 1
-        }
-    }
-
-    var readingEndPage: Int {
-        let prefs = readingPreferences
-        if let customEnd = prefs.customEndPage {
-            return customEnd
-        }
-
-        switch prefs.pageCountingStyle {
-        case .inclusive:
-            return totalPages
-        case .mainOnly:
-            return totalPages - prefs.estimatedBackMatterPages
-        case .custom:
-            return prefs.customEndPage ?? totalPages
-        }
-    }
-
-    // Check if book has custom reading preferences set
-    var hasCustomReadingPreferences: Bool {
-        let prefs = readingPreferences
-        return prefs.pageCountingStyle != .inclusive ||
-               prefs.customStartPage != nil ||
-               prefs.customEndPage != nil
-    }
-
-    // Get reading preference summary
-    var readingPreferenceSummary: String {
-        let prefs = readingPreferences
-        switch prefs.pageCountingStyle {
-        case .inclusive:
-            return "Full book (\(effectiveTotalPages) pages)"
-        case .mainOnly:
-            return "Main story (\(effectiveTotalPages) pages)"
-        case .custom:
-            return "Custom range (\(effectiveTotalPages) pages)"
-        }
-    }
-
+    
     enum ReadingDifficulty: CaseIterable {
         case easy, medium, hard
-
+        
         var multiplier: Double {
             switch self {
             case .easy: return 0.8
@@ -114,80 +131,153 @@ struct Book: Identifiable, Hashable {
             }
         }
     }
-
-    // FIXED: Reading completion odds now use effective pages
+    
+    // OPTIMIZED: Cache odds calculations using static cache
     var odds: [(String, String)] {
+        // Check static cache first
+        if let cached = Book.oddsCache[id] {
+            return cached
+        }
         let baseMultiplier = difficulty.multiplier
-        let pagesFactor = Double(effectiveTotalPages) / 300.0 // FIXED: Use effective pages
-
+        let pagesFactor = Double(effectiveTotalPages) / 300.0
+        
         let dayOdds = calculateOdds(timeframe: 1, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
         let weekOdds = calculateOdds(timeframe: 7, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
         let monthOdds = calculateOdds(timeframe: 30, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
-
-        return [
+        
+        let result = [
             ("1 Day", formatOdds(dayOdds)),
             ("1 Week", formatOdds(weekOdds)),
             ("1 Month", formatOdds(monthOdds))
         ]
+        
+        // Store in static cache
+        Book.oddsCache[id] = result
+        return result
     }
-
-    // FIXED: Calculate odds using effective pages
+    
     private func calculateOdds(timeframe: Int, baseMultiplier: Double, pagesFactor: Double) -> Int {
-        let pagesPerDay = Double(effectiveTotalPages) / Double(timeframe) // FIXED: Use effective pages
-
+        let pagesPerDay = Double(effectiveTotalPages) / Double(timeframe)
+        
         let difficultyFactor: Double
         switch timeframe {
-        case 1: // 1 day - hardest
+        case 1:
             difficultyFactor = min(pagesPerDay / 20.0, 8.0)
-        case 7: // 1 week - moderate
+        case 7:
             difficultyFactor = min(pagesPerDay / 10.0, 3.0)
-        case 30: // 1 month - easiest
+        case 30:
             difficultyFactor = min(pagesPerDay / 5.0, 1.5)
         default:
             difficultyFactor = 1.0
         }
-
+        
         let finalOdds = 100 + Int((difficultyFactor * baseMultiplier * 50))
         return min(max(finalOdds, 110), 800)
     }
-
+    
     private func formatOdds(_ value: Int) -> String {
         return "+\(value)"
     }
-
-    // FIXED: Journal action odds now use effective pages
+    
+    // OPTIMIZED: Cache journal odds calculations using static cache
     var journalOdds: [(String, String)] {
+        // Check static cache first
+        if let cached = Book.journalOddsCache[id] {
+            return cached
+        }
         let baseMultiplier = difficulty.multiplier
-
-        // Generate odds for different numbers of takeaways/notes
+        
         let fewOdds = calculateJournalOdds(count: "1-3", baseMultiplier: baseMultiplier)
         let someOdds = calculateJournalOdds(count: "4-7", baseMultiplier: baseMultiplier)
         let manyOdds = calculateJournalOdds(count: "8+", baseMultiplier: baseMultiplier)
-
-        return [
+        
+        let result = [
             ("1-3 Notes", formatOdds(fewOdds)),
             ("4-7 Notes", formatOdds(someOdds)),
             ("8+ Notes", formatOdds(manyOdds))
         ]
+        
+        // Store in static cache
+        Book.journalOddsCache[id] = result
+        return result
     }
-
+    
     private func calculateJournalOdds(count: String, baseMultiplier: Double) -> Int {
         let difficultyFactor: Double
-
+        
         switch count {
-        case "1-3": // Easier - most people write a few notes
+        case "1-3":
             difficultyFactor = 0.5
-        case "4-7": // Moderate - good engagement
+        case "4-7":
             difficultyFactor = 1.0
-        case "8+": // Harder - very engaged reading
+        case "8+":
             difficultyFactor = 2.0
         default:
             difficultyFactor = 1.0
         }
-
+        
         let finalOdds = 100 + Int((difficultyFactor * baseMultiplier * 30))
         return min(max(finalOdds, 105), 400)
     }
+    
+    // ADDED: Computed properties for reading preferences
+    var hasCustomReadingPreferences: Bool {
+        if let cached = Book.hasCustomReadingPreferencesCache[id] {
+            return cached
+        }
+        let prefs = readingPreferences
+        let result = prefs.pageCountingStyle != .inclusive
+        Book.hasCustomReadingPreferencesCache[id] = result
+        return result
+    }
+    
+    var readingPreferenceSummary: String {
+        if let cached = Book.readingPreferenceSummaryCache[id] {
+            return cached
+        }
+        let prefs = readingPreferences
+        let result: String
+        
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            result = "Full book"
+        case .mainOnly:
+            result = "Main story only"
+        case .custom:
+            if let start = prefs.customStartPage, let end = prefs.customEndPage {
+                result = "Pages \(start)-\(end)"
+            } else {
+                result = "Custom range"
+            }
+        }
+        
+        Book.readingPreferenceSummaryCache[id] = result
+        return result
+    }
+    
+    // MARK: - Cache Invalidation
+    
+    /// Call this when preferences change to invalidate cached values
+    static func invalidateCache(for bookId: UUID) {
+        preferencesCache.removeValue(forKey: bookId)
+        effectiveTotalPagesCache.removeValue(forKey: bookId)
+        readingStartPageCache.removeValue(forKey: bookId)
+        readingEndPageCache.removeValue(forKey: bookId)
+        hasCustomReadingPreferencesCache.removeValue(forKey: bookId)
+        readingPreferenceSummaryCache.removeValue(forKey: bookId)
+        oddsCache.removeValue(forKey: bookId)
+        journalOddsCache.removeValue(forKey: bookId)
+    }
+    
+    /// Clear all caches (useful for memory management)
+    static func clearAllCaches() {
+        preferencesCache.removeAll()
+        effectiveTotalPagesCache.removeAll()
+        readingStartPageCache.removeAll()
+        readingEndPageCache.removeAll()
+        hasCustomReadingPreferencesCache.removeAll()
+        readingPreferenceSummaryCache.removeAll()
+        oddsCache.removeAll()
+        journalOddsCache.removeAll()
+    }
 }
-
-

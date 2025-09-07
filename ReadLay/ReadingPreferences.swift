@@ -62,14 +62,14 @@ struct ReadingPreferences: Codable {
         }
     }
 
-    static func `default`(for book: Book) -> ReadingPreferences {
+    static func `default`(for bookId: UUID, totalPages: Int) -> ReadingPreferences {
         var prefs = ReadingPreferences()
 
         // Smart defaults based on book length
-        if book.totalPages > 300 {
+        if totalPages > 300 {
             prefs.estimatedFrontMatterPages = 15
             prefs.estimatedBackMatterPages = 25
-        } else if book.totalPages > 150 {
+        } else if totalPages > 150 {
             prefs.estimatedFrontMatterPages = 10
             prefs.estimatedBackMatterPages = 15
         } else {

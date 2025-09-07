@@ -1,11 +1,3 @@
-//
-//  QuickPageSetupView.swift
-//  ReadLay
-//
-//  Created by Mateo Arratia on 7/13/25.
-//
-
-
 
 //
 //  QuickPageSetupView.swift
@@ -16,17 +8,18 @@
 
 import SwiftUI
 
-// MARK: - Quick Page Setup View
 struct QuickPageSetupView: View {
     @Binding var book: Book
+    var onSave: (Book) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
     @State private var preferences: ReadingPreferences
     @FocusState private var startPageFocused: Bool
     @FocusState private var endPageFocused: Bool
 
-    init(book: Binding<Book>) {
+    init(book: Binding<Book>, onSave: @escaping (Book) -> Void = { _ in }) {
         self._book = book
         self._preferences = State(initialValue: book.wrappedValue.readingPreferences)
+        self.onSave = onSave
     }
 
     var body: some View {
@@ -35,11 +28,7 @@ struct QuickPageSetupView: View {
                 VStack(spacing: 24) {
                     headerSection
                     quickOptionsSection
-
-                    if preferences.pageCountingStyle == .custom {
-                        customRangeSection
-                    }
-
+                    customRangeSectionIfNeeded
                     summarySection
                 }
                 .padding(.horizontal, 20)
@@ -50,17 +39,16 @@ struct QuickPageSetupView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button("Back") {
                         dismiss()
                     }
                     .foregroundColor(.goodreadsAccent)
                 }
-
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         hideKeyboard()
                         book.readingPreferences = preferences
-                        dismiss()
+                        onSave(book)
                     }
                     .foregroundColor(.goodreadsBrown)
                     .fontWeight(.semibold)
@@ -69,23 +57,18 @@ struct QuickPageSetupView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") {
-                        hideKeyboard()
-                    }
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.goodreadsBrown)
+                    Button("Done") { hideKeyboard() }
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.goodreadsBrown)
                 }
             }
         }
-        // REMOVED: .onTapGesture that was causing conflicts
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 
     private var backgroundGradient: some View {
         LinearGradient(
-            gradient: Gradient(colors: [
-                Color.goodreadsBeige,
-                Color.goodreadsWarm.opacity(0.5)
-            ]),
+            gradient: Gradient(colors: [Color.goodreadsBeige, Color.goodreadsWarm.opacity(0.5)]),
             startPoint: .top,
             endPoint: .bottom
         )
@@ -97,186 +80,94 @@ struct QuickPageSetupView: View {
             Image(systemName: "book.pages")
                 .font(.system(size: 40))
                 .foregroundColor(.goodreadsBrown)
-
             Text("How do you want to read this book?")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
                 .multilineTextAlignment(.center)
-
             Text(book.title)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.goodreadsAccent)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
-
             Text("\(book.totalPages) total pages")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.goodreadsAccent.opacity(0.8))
         }
-        // ADDED: Background tap to dismiss keyboard without interfering with buttons
         .contentShape(Rectangle())
-        .onTapGesture {
-            hideKeyboard()
-        }
+        .onTapGesture { hideKeyboard() }
     }
 
     private var quickOptionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Reading Style")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Quick Options")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-
-            VStack(spacing: 12) {
-                ForEach(ReadingPreferences.PageCountingStyle.allCases, id: \.self) { style in
-                    QuickOptionCard(
-                        style: style,
-                        isSelected: preferences.pageCountingStyle == style,
-                        effectivePages: calculateEffectivePages(for: style),
-                        onSelect: {
-                            withAnimation(.easeInOut(duration: 0.2)) {  // ADDED: Animation for smoother transitions
-                                preferences.pageCountingStyle = style
-                                updatePreferencesForStyle(style)
-                            }
-                        }
-                    )
-                }
+            ForEach(ReadingPreferences.PageCountingStyle.allCases, id: \.self) { style in
+                QuickOptionCard(
+                    style: style,
+                    isSelected: preferences.pageCountingStyle == style,
+                    effectivePages: calculateEffectivePages(for: style),
+                    onSelect: {
+                        hideKeyboard()
+                        preferences.pageCountingStyle = style
+                        updatePreferences(for: style)
+                    }
+                )
             }
         }
+        .padding(20)
+        .background(sectionBackground)
     }
 
-    private var customRangeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Custom Page Range")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.goodreadsBrown)
-
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Start Page")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.goodreadsBrown)
-
-                    TextField("1", value: $preferences.customStartPage, format: .number)
-                        .font(.system(size: 16))
-                        .focused($startPageFocused)
-                        .keyboardType(.numberPad)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.goodreadsBeige)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(
-                                            startPageFocused ?
-                                                Color.goodreadsBrown.opacity(0.7) :
-                                                Color.goodreadsAccent.opacity(0.3),
-                                            lineWidth: startPageFocused ? 2 : 1
-                                        )
-                                )
-                        )
-                        // REMOVED: onTapGesture as it's redundant with focused()
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("End Page")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.goodreadsBrown)
-
-                    TextField("\(book.totalPages)", value: $preferences.customEndPage, format: .number)
-                        .font(.system(size: 16))
-                        .focused($endPageFocused)
-                        .keyboardType(.numberPad)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.goodreadsBeige)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(
-                                            endPageFocused ?
-                                                Color.goodreadsBrown.opacity(0.7) :
-                                                Color.goodreadsAccent.opacity(0.3),
-                                            lineWidth: endPageFocused ? 2 : 1
-                                        )
-                                )
-                        )
-                        // REMOVED: onTapGesture as it's redundant with focused()
-                }
-            }
-
-            Button("Reset to Auto-Detect") {
-                preferences.customStartPage = nil
-                preferences.customEndPage = nil
-            }
-            .font(.system(size: 14, weight: .medium))
-            .foregroundColor(.goodreadsBrown)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.goodreadsWarm.opacity(0.5))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.goodreadsAccent.opacity(0.2), lineWidth: 1)
-                )
+    private var customRangeSectionIfNeeded: some View {
+        CustomRangeSectionView(
+            preferences: $preferences,
+            startPageFocused: _startPageFocused,
+            endPageFocused: _endPageFocused
         )
-        .transition(.opacity.combined(with: .scale))  // ADDED: Smooth transition
     }
 
     private var summarySection: some View {
-        VStack(spacing: 12) {
-            Text("Your Reading Goal")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Summary")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-
-            let effectivePages = calculateEffectivePages(for: preferences.pageCountingStyle)
-            let startPage = calculateStartPage(for: preferences.pageCountingStyle)
-            let endPage = calculateEndPage(for: preferences.pageCountingStyle)
-
             HStack {
-                VStack {
-                    Text("\(effectivePages)")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.goodreadsBrown)
-                    Text("Pages to Read")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.goodreadsAccent)
-                }
-
+                Text("Effective Pages:")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.goodreadsAccent)
                 Spacer()
-
-                VStack {
-                    Text("\(startPage) - \(endPage)")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.goodreadsBrown)
-                    Text("Page Range")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.goodreadsAccent)
-                }
+                Text("\(calculateEffectivePages(for: preferences.pageCountingStyle))")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.goodreadsBrown)
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.goodreadsBrown.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.goodreadsBrown.opacity(0.3), lineWidth: 2)
-                    )
-            )
+            HStack {
+                Text("Page Range:")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.goodreadsAccent)
+                Spacer()
+                Text("\(calculateStartPage(for: preferences.pageCountingStyle)) - \(calculateEndPage(for: preferences.pageCountingStyle))")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.goodreadsBrown)
+            }
         }
+        .padding(20)
+        .background(sectionBackground)
     }
 
-    // MARK: - Helper Methods
+    private var sectionBackground: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Color.goodreadsWarm)
+            .shadow(color: .goodreadsBrown.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
 
     private func hideKeyboard() {
         startPageFocused = false
         endPageFocused = false
-        // SIMPLIFIED: Removed UIApplication.shared.sendAction call as setting focus states to false is sufficient
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
-    private func updatePreferencesForStyle(_ style: ReadingPreferences.PageCountingStyle) {
+    private func updatePreferences(for style: ReadingPreferences.PageCountingStyle) {
         switch style {
         case .inclusive:
             preferences.includeFrontMatter = true
@@ -332,7 +223,90 @@ struct QuickPageSetupView: View {
     }
 }
 
-// MARK: - Quick Option Card
+struct CustomRangeSectionView: View {
+    @Binding var preferences: ReadingPreferences
+    @FocusState var startPageFocused: Bool
+    @FocusState var endPageFocused: Bool
+
+    var body: some View {
+        Group {
+            if preferences.pageCountingStyle == .custom {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Custom Page Range")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.goodreadsBrown)
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Start Page")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.goodreadsAccent)
+                            TextField("Start", text: Binding(
+                                get: { preferences.customStartPage.map(String.init) ?? "" },
+                                set: { text in
+                                    preferences.customStartPage = Int(text.filter { $0.isNumber }) ?? 1
+                                }
+                            ))
+                            .font(.system(size: 16, weight: .medium))
+                            .keyboardType(.numberPad)
+                            .focused($startPageFocused)
+                            .padding(12)
+                            .background(Color.goodreadsBeige)
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("End Page")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.goodreadsAccent)
+                            TextField("End", text: Binding(
+                                get: { preferences.customEndPage.map(String.init) ?? "" },
+                                set: { text in
+                                    preferences.customEndPage = Int(text.filter { $0.isNumber }) ?? 1
+                                }
+                            ))
+                            .font(.system(size: 16, weight: .medium))
+                            .keyboardType(.numberPad)
+                            .focused($endPageFocused)
+                            .padding(12)
+                            .background(Color.goodreadsBeige)
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                    }
+                    Text("Effective pages: \(calculateEffectivePages(for: .custom))")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.goodreadsAccent.opacity(0.8))
+                        .padding(.top, 4)
+                }
+                .padding(20)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color.goodreadsWarm))
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private func calculateEffectivePages(for style: ReadingPreferences.PageCountingStyle) -> Int {
+        switch style {
+        case .inclusive:
+            return preferences.estimatedFrontMatterPages + preferences.estimatedBackMatterPages
+        case .mainOnly:
+            return preferences.estimatedFrontMatterPages + preferences.estimatedBackMatterPages
+        case .custom:
+            guard let start = preferences.customStartPage,
+                  let end = preferences.customEndPage else {
+                return preferences.estimatedFrontMatterPages + preferences.estimatedBackMatterPages
+            }
+            return max(0, end - start + 1)
+        }
+    }
+}
+
 struct QuickOptionCard: View {
     let style: ReadingPreferences.PageCountingStyle
     let isSelected: Bool
@@ -346,30 +320,24 @@ struct QuickOptionCard: View {
                     .font(.system(size: 20))
                     .foregroundColor(isSelected ? .white : .goodreadsBrown)
                     .frame(width: 24)
-
                 VStack(alignment: .leading, spacing: 4) {
                     Text(style.displayName)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(isSelected ? .white : .goodreadsBrown)
-
                     Text(style.description)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(isSelected ? .white.opacity(0.9) : .goodreadsAccent)
                         .multilineTextAlignment(.leading)
                 }
-
                 Spacer()
-
                 VStack(spacing: 2) {
                     Text("\(effectivePages)")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(isSelected ? .white : .goodreadsBrown)
-
                     Text("pages")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(isSelected ? .white.opacity(0.8) : .goodreadsAccent)
                 }
-
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundColor(isSelected ? .white : .goodreadsAccent.opacity(0.6))
@@ -384,6 +352,6 @@ struct QuickOptionCard: View {
                     )
             )
         }
-        .buttonStyle(PlainButtonStyle())  // IMPORTANT: Ensures button responds properly
+        .buttonStyle(PlainButtonStyle())
     }
 }

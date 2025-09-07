@@ -3,8 +3,7 @@
 //  ReadLay
 //
 //  Created by Mateo Arratia on 6/4/25.
-
-//  Performance optimized version
+//  Performance optimized version - WITH PAGE SETUP INTEGRATION
 //
 
 import SwiftUI
@@ -18,36 +17,44 @@ struct BookSearchView: View {
     @State private var hasSearched = false
     @State private var showingManualEntry = false
     @State private var showingISBNLookup = false
-    let onBookSelected: (Book) -> Void
-
-    // OPTIMIZED: Cache results to avoid recalculation
+    @State private var errorMessage: String? = nil
+    @State private var selectedBookForSetup: Book?
+    @State private var showingPageSetup = false
     @State private var cachedResults: [SearchResult] = []
+    @State private var lastSearchText: String = ""
+    @FocusState private var isSearchFocused: Bool
+    
+    let onBookSelected: (Book) -> Void
     
     private var allResults: [SearchResult] {
-        // Only recalculate if cache is empty
-        if !cachedResults.isEmpty {
+        if lastSearchText == searchText && !cachedResults.isEmpty {
             return cachedResults
         }
-        
         var results: [SearchResult] = []
         results.append(contentsOf: openLibraryResults.map { SearchResult.openLibrary($0) })
         results.append(contentsOf: googleBooksResults.map { SearchResult.googleBooks($0) })
-        
-        // Store in cache
+        let finalResults = results.removingDuplicates()
         DispatchQueue.main.async {
-            self.cachedResults = results.removingDuplicates()
+            self.cachedResults = finalResults
+            self.lastSearchText = self.searchText
         }
-        
-        return results.removingDuplicates()
+        return finalResults
     }
-
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                simplifiedSearchBar  // SIMPLIFIED: Reduced complexity
+                simplifiedSearchBar
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 4)
+                }
                 contentSection
             }
-            .background(Color.goodreadsBeige)  // SIMPLIFIED: Static color instead of gradient
+            .background(Color.goodreadsBeige)
             .navigationTitle("Add Book")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -57,7 +64,6 @@ struct BookSearchView: View {
                     }
                     .foregroundColor(.goodreadsAccent)
                 }
-
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Manual") {
                         showingManualEntry = true
@@ -69,35 +75,50 @@ struct BookSearchView: View {
         }
         .sheet(isPresented: $showingManualEntry) {
             ManualBookEntryView { book in
-                onBookSelected(book)
-                dismiss()
+                selectedBookForSetup = book
+                showingPageSetup = true
+                showingManualEntry = false
             }
         }
         .sheet(isPresented: $showingISBNLookup) {
             ISBNLookupView { book in
-                onBookSelected(book)
-                dismiss()
+                selectedBookForSetup = book
+                showingPageSetup = true
+                showingISBNLookup = false
             }
         }
-    }
+        .sheet(item: $selectedBookForSetup) { initial in
+            QuickPageSetupView(
+                book: Binding(
+                    get: { initial },
+                    set: { updated in
+                        selectedBookForSetup = updated
+                    }
+                ),
+                onSave: { finalBook in
+                    onBookSelected(finalBook)
+                    dismiss()
+                }
+            )
+        }
 
-    // SIMPLIFIED: Reduced visual complexity
+    }
+    
     private var simplifiedSearchBar: some View {
         VStack(spacing: 8) {
-            // Search field
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.goodreadsAccent)
                     .font(.system(size: 16))
-
                 TextField("Search for books...", text: $searchText)
                     .font(.system(size: 16))
                     .foregroundColor(.goodreadsBrown)
                     .submitLabel(.search)
+                    .focused($isSearchFocused)
                     .onSubmit {
-                        searchBooks()
+                        isSearchFocused = false
+                        performSearch()
                     }
-
                 if !searchText.isEmpty {
                     Button(action: {
                         searchText = ""
@@ -107,6 +128,18 @@ struct BookSearchView: View {
                             .foregroundColor(.goodreadsAccent.opacity(0.6))
                     }
                 }
+                Button(action: {
+                    isSearchFocused = false
+                    performSearch()
+                }) {
+                    Text("Search")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.goodreadsBrown)
+                        .cornerRadius(6)
+                }
             }
             .padding(12)
             .background(Color.goodreadsBeige)
@@ -114,8 +147,6 @@ struct BookSearchView: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
             )
-
-            // Quick actions - SIMPLIFIED design
             HStack(spacing: 8) {
                 Button(action: {
                     showingISBNLookup = true
@@ -128,7 +159,6 @@ struct BookSearchView: View {
                         .background(Color.goodreadsWarm)
                         .cornerRadius(6)
                 }
-
                 Button(action: {
                     showingManualEntry = true
                 }) {
@@ -145,7 +175,7 @@ struct BookSearchView: View {
         .padding(.horizontal, 20)
         .padding(.top, 12)
     }
-
+    
     @ViewBuilder
     private var contentSection: some View {
         if isSearching {
@@ -153,12 +183,12 @@ struct BookSearchView: View {
         } else if hasSearched && allResults.isEmpty {
             noResultsView
         } else if !allResults.isEmpty {
-            optimizedResultsView  // OPTIMIZED: List instead of ScrollView
+            optimizedResultsView
         } else {
-            simpleEmptyState  // SIMPLIFIED: Reduced complexity
+            simpleEmptyState
         }
     }
-
+    
     private var searchingView: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -169,7 +199,7 @@ struct BookSearchView: View {
             Spacer()
         }
     }
-
+    
     private var noResultsView: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -186,16 +216,15 @@ struct BookSearchView: View {
         }
         .padding(.horizontal, 24)
     }
-
-    // OPTIMIZED: Use List for better performance with large datasets
+    
     private var optimizedResultsView: some View {
         List(allResults, id: \.id) { result in
             SimplifiedResultRow(
                 result: result,
                 onSelect: {
                     let book = result.toBook()
-                    onBookSelected(book)
-                    dismiss()
+                    selectedBookForSetup = book
+                    showingPageSetup = true
                 }
             )
             .listRowSeparator(.hidden)
@@ -204,77 +233,95 @@ struct BookSearchView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.immediately)
     }
-
-    // SIMPLIFIED: Much simpler empty state
+    
     private var simpleEmptyState: some View {
         VStack(spacing: 20) {
             Spacer()
             Image(systemName: "text.magnifyingglass")
                 .font(.system(size: 48))
                 .foregroundColor(.goodreadsAccent.opacity(0.5))
-            
             Text("Search for books")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.goodreadsBrown)
-            
             Text("Enter title or author above")
                 .font(.system(size: 14))
                 .foregroundColor(.goodreadsAccent)
             Spacer()
         }
     }
-
+    
     private func clearResults() {
         openLibraryResults = []
         googleBooksResults = []
         cachedResults = []
+        lastSearchText = ""
         hasSearched = false
+        errorMessage = nil
     }
-
+    
+    private func performSearch() {
+        let trimmedText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            errorMessage = "Please enter a search term"
+            return
+        }
+        searchBooks()
+    }
+    
     private func searchBooks() {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-
+        let trimmedText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
         isSearching = true
         hasSearched = true
-        cachedResults = []  // Clear cache before new search
-
+        cachedResults = []
+        errorMessage = nil
         Task {
-            async let openLibraryTask = searchOpenLibrary()
-            async let googleBooksTask = searchGoogleBooks()
-
-            _ = await (openLibraryTask, googleBooksTask)
-
-            await MainActor.run {
-                self.isSearching = false
+            do {
+                async let openLibraryTask = searchOpenLibrary()
+                async let googleBooksTask = searchGoogleBooks()
+                let (openLibSuccess, googleSuccess) = await (openLibraryTask, googleBooksTask)
+                await MainActor.run {
+                    self.isSearching = false
+                    if !openLibSuccess && !googleSuccess {
+                        self.errorMessage = "Search failed. Please check your internet connection."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isSearching = false
+                    self.errorMessage = "Search error: \(error.localizedDescription)"
+                }
             }
         }
     }
-
-    private func searchOpenLibrary() async {
+    
+    private func searchOpenLibrary() async -> Bool {
         do {
             let results = try await OpenLibraryAPI.shared.searchBooks(query: searchText)
             await MainActor.run {
                 self.openLibraryResults = results
             }
+            return true
         } catch {
-            print("Open Library search error: \(error)")
+            return false
         }
     }
-
-    private func searchGoogleBooks() async {
+    
+    private func searchGoogleBooks() async -> Bool {
         do {
             let results = try await GoogleBooksAPI.shared.searchBooks(query: searchText)
             await MainActor.run {
                 self.googleBooksResults = results
             }
+            return true
         } catch {
-            print("Google Books search error: \(error)")
+            return false
         }
     }
 }
 
-// SIMPLIFIED: Lighter weight result row
 struct SimplifiedResultRow: View {
     let result: SearchResult
     let onSelect: () -> Void
@@ -282,7 +329,6 @@ struct SimplifiedResultRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
-                // Simplified placeholder - no AsyncImage
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.goodreadsBeige)
                     .frame(width: 50, height: 70)
@@ -304,37 +350,31 @@ struct SimplifiedResultRow: View {
                         }
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-
+                
                 VStack(alignment: .leading, spacing: 4) {
                     Text(result.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.goodreadsBrown)
                         .lineLimit(2)
-
                     if let author = result.author {
                         Text(author)
                             .font(.system(size: 13))
                             .foregroundColor(.goodreadsAccent)
                             .lineLimit(1)
                     }
-
                     HStack(spacing: 6) {
                         Text("\(result.pageCount) pages")
                             .font(.system(size: 11))
                             .foregroundColor(.goodreadsAccent.opacity(0.8))
-                        
                         Text("•")
                             .foregroundColor(.goodreadsAccent.opacity(0.5))
-                        
                         Text(result.source)
                             .font(.system(size: 11))
                             .foregroundColor(.goodreadsAccent.opacity(0.8))
                     }
                 }
-
                 Spacer()
-
-                Image(systemName: "plus.circle.fill")
+                Image(systemName: "arrow.right.circle.fill")
                     .font(.system(size: 22))
                     .foregroundColor(.goodreadsBrown)
             }
@@ -346,13 +386,10 @@ struct SimplifiedResultRow: View {
     }
 }
 
-// Keep existing SearchResult enum and extensions...
-
-// MARK: - Search Result Types
 enum SearchResult: Identifiable {
     case openLibrary(OpenLibraryBook)
     case googleBooks(GoogleBook)
-
+    
     var id: String {
         switch self {
         case .openLibrary(let book):
@@ -361,7 +398,7 @@ enum SearchResult: Identifiable {
             return "gb_\(book.id)"
         }
     }
-
+    
     var title: String {
         switch self {
         case .openLibrary(let book):
@@ -370,7 +407,7 @@ enum SearchResult: Identifiable {
             return book.volumeInfo.title
         }
     }
-
+    
     var author: String? {
         switch self {
         case .openLibrary(let book):
@@ -379,7 +416,7 @@ enum SearchResult: Identifiable {
             return book.volumeInfo.authors?.first
         }
     }
-
+    
     var pageCount: Int {
         switch self {
         case .openLibrary(let book):
@@ -388,7 +425,7 @@ enum SearchResult: Identifiable {
             return book.volumeInfo.pageCount ?? 250
         }
     }
-
+    
     var coverURL: String? {
         switch self {
         case .openLibrary(let book):
@@ -397,7 +434,7 @@ enum SearchResult: Identifiable {
             return book.volumeInfo.imageLinks?.thumbnail?.replacingOccurrences(of: "http://", with: "https://")
         }
     }
-
+    
     var source: String {
         switch self {
         case .openLibrary:
@@ -406,7 +443,7 @@ enum SearchResult: Identifiable {
             return "Google Books"
         }
     }
-
+    
     func toBook() -> Book {
         let spineColors: [Color] = [
             Color(red: 0.2, green: 0.4, blue: 0.8),
@@ -418,7 +455,6 @@ enum SearchResult: Identifiable {
             Color(red: 0.7, green: 0.6, blue: 0.1),
             Color(red: 0.3, green: 0.1, blue: 0.6)
         ]
-
         let difficulty: Book.ReadingDifficulty
         if pageCount < 250 {
             difficulty = .easy
@@ -427,7 +463,6 @@ enum SearchResult: Identifiable {
         } else {
             difficulty = .hard
         }
-
         return Book(
             id: UUID(),
             title: title,
@@ -442,83 +477,6 @@ enum SearchResult: Identifiable {
     }
 }
 
-struct SearchResultRowView: View {
-    let result: SearchResult
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 12) {
-                // Book cover
-                AsyncImage(url: URL(string: result.coverURL ?? "")) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.goodreadsBeige)
-                        .overlay(
-                            Image(systemName: "book.closed")
-                                .font(.title2)
-                                .foregroundColor(.goodreadsAccent)
-                        )
-                }
-                .frame(width: 60, height: 85)
-                .cornerRadius(8)
-
-                // Book details
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(result.title)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.goodreadsBrown)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-
-                    if let author = result.author {
-                        Text(author)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.goodreadsAccent)
-                            .lineLimit(1)
-                    }
-
-                    HStack(spacing: 8) {
-                        Text("\(result.pageCount) pages")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.goodreadsAccent.opacity(0.8))
-
-                        Text(result.source)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(result.source == "Open Library" ? Color.green.opacity(0.7) : Color.blue.opacity(0.7))
-                            )
-                    }
-                }
-
-                Spacer()
-
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.goodreadsBrown)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.goodreadsWarm)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.goodreadsAccent.opacity(0.2), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-// Helper extension to remove duplicate search results
 extension Array where Element == SearchResult {
     func removingDuplicates() -> [SearchResult] {
         var seen = Set<String>()

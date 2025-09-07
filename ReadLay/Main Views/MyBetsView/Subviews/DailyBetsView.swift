@@ -4,211 +4,306 @@
 //
 //  Created by Mateo Arratia on 7/2/25.
 //
-//  DailyBetsView.swift - UPDATED EXISTING FILE
-//  Key changes: Fixed day progression flow to show next day without forcing reading session
 
 import SwiftUI
 
 struct DailyBetsView: View {
     @EnvironmentObject var readSlipViewModel: ReadSlipViewModel
-    @StateObject private var sessionViewModel = ReadingSessionViewModel()
     @StateObject private var dailyBetsViewModel = DailyBetsViewModel()
-
+    @StateObject private var sessionViewModel = ReadingSessionViewModel()  // SINGLE INSTANCE
+    @State private var selectedFilter: FilterOption = .all
+    @State private var showingReader = false
+    @State private var selectedBet: DailyBet?
+    
+    enum FilterOption: String, CaseIterable {
+        case all = "All"
+        case incomplete = "To Do"
+        case complete = "Done"
+        
+        var icon: String {
+            switch self {
+            case .all: return "list.bullet"
+            case .incomplete: return "circle"
+            case .complete: return "checkmark.circle.fill"
+            }
+        }
+    }
+    
+    private var filteredDailyBets: [DailyBet] {
+        switch selectedFilter {
+        case .all: return dailyBetsViewModel.dailyBets
+        case .incomplete: return dailyBetsViewModel.incompleteDailyBets
+        case .complete: return dailyBetsViewModel.completedDailyBets
+        }
+    }
+    
+    private var dailyProgressSummary: (completed: Int, total: Int, percentage: Double) {
+        dailyBetsViewModel.getDailyProgressSummary()
+    }
+    
     var body: some View {
-        ZStack {
-            ScrollView {
-                if dailyBetsViewModel.dailyBets.isEmpty {
+        ScrollView {
+            VStack(spacing: 20) {
+                if !readSlipViewModel.placedBets.isEmpty { progressSummaryCard }
+                if !dailyBetsViewModel.dailyBets.isEmpty { filterSection }
+                if filteredDailyBets.isEmpty {
                     emptyStateView
                 } else {
-                    betsListView
+                    LazyVStack(spacing: 12) {
+                        ForEach(filteredDailyBets) { dailyBet in
+                            DailyBetRowView(
+                                dailyBet: dailyBet,
+                                onStartReading: {
+                                    openReader(for: dailyBet)
+                                }
+                            )
+                            .environmentObject(readSlipViewModel)
+                        }
+                    }
+                    .padding(.horizontal, 20)
                 }
             }
-
-            // Continue Reading Confirmation - Shows when continuing (not first time)
-            if sessionViewModel.showingStartPageConfirmation,
-               let session = sessionViewModel.currentSession,
-               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
-                ContinueReadingConfirmationView(
-                    sessionViewModel: sessionViewModel,
-                    book: bet.book,
-                    nextPage: sessionViewModel.calculatedNextPage
-                ) {
-                    // onConfirm callback - confirmation view already started the session
-                    // Just hide the confirmation view
-                }
-                .transition(.opacity)
-                .zIndex(999)
-            }
-
-            // Reading Timer Overlay - Shows after confirmation or immediately for first read
-            if sessionViewModel.isReading,
-               let session = sessionViewModel.currentSession,
-               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
-                ReadingTimerView(sessionViewModel: sessionViewModel, book: bet.book)
-                    .transition(.opacity)
-                    .zIndex(1000)
-            }
-
-            // Ending Page Input Overlay
-            if sessionViewModel.showingEndPageInput,
-               let session = sessionViewModel.currentSession,
-               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
-                EndingPageInputView(
-                    sessionViewModel: sessionViewModel,
-                    book: bet.book
-                ) { endingPage in
-                    handleSessionCompletion(endingPage: endingPage)
-                }
-                .transition(.opacity)
-            }
-
-            // Comment Input Overlay
-            if sessionViewModel.showingCommentInput,
-               let session = sessionViewModel.currentSession,
-               let bet = dailyBetsViewModel.dailyBets.first(where: { $0.betId == session.betId }) {
-                CommentInputView(
+            .padding(.vertical, 16)
+        }
+        .onAppear {
+            dailyBetsViewModel.updateDailyBetsWithMultiDay(
+                from: readSlipViewModel.placedBets,
+                readSlipViewModel: readSlipViewModel
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("BetsPlaced"))) { _ in
+            dailyBetsViewModel.updateDailyBetsWithMultiDay(
+                from: readSlipViewModel.placedBets,
+                readSlipViewModel: readSlipViewModel
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ReadingSessionCompleted"))) { _ in
+            dailyBetsViewModel.updateDailyBetsWithMultiDay(
+                from: readSlipViewModel.placedBets,
+                readSlipViewModel: readSlipViewModel
+            )
+        }
+        .fullScreenCover(isPresented: $showingReader) {
+            if let bet = selectedBet {
+                ReadingSessionFlow(
+                    bet: bet,
                     sessionViewModel: sessionViewModel,
                     readSlipViewModel: readSlipViewModel,
-                    book: bet.book
-                ) {
-                    sessionViewModel.cancelSession()
-                }
-                .transition(.opacity)
+                    isPresented: $showingReader
+                )
             }
         }
-        .onReceive(readSlipViewModel.$placedBets.combineLatest(readSlipViewModel.$dailyProgress)) { placedBets, _ in
-            dailyBetsViewModel.updateDailyBetsWithMultiDay(from: placedBets, readSlipViewModel: readSlipViewModel)
-        }
-        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingStartPageConfirmation)
-        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.isReading)
-        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingEndPageInput)
-        .animation(.easeInOut(duration: 0.3), value: sessionViewModel.showingCommentInput)
     }
-
-    // MARK: - Session Completion Handler
-    private func handleSessionCompletion(endingPage: Int) {
-        guard let session = sessionViewModel.currentSession else { return }
-
-        readSlipViewModel.updateReadingProgress(
-            for: session.betId,
-            startingPage: session.startingPage,
-            endingPage: endingPage
+    
+    private func openReader(for bet: DailyBet) {
+        selectedBet = bet
+        let lastReadPage = readSlipViewModel.getLastReadPage(for: bet.betId)
+        sessionViewModel.startReadingSession(
+            for: bet.betId,
+            book: bet.book,
+            lastReadPage: lastReadPage
         )
-
-        sessionViewModel.setEndingPage(endingPage)
-
-        print("DEBUG: Session completed - Starting: \(session.startingPage), Ending: \(endingPage)")
+        showingReader = true
     }
-
-    // MARK: - Bets List
-    private var betsListView: some View {
-        LazyVStack(spacing: 16) {
-            ForEach(groupedDailyBets, id: \.0) { bookTitle, betsForBook in
-                VStack(spacing: 12) {
-                    if betsForBook.count > 1 {
-                        HStack {
-                            Text(bookTitle)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.goodreadsBrown)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                    }
-
-                    ForEach(betsForBook.sorted { $0.dayNumber < $1.dayNumber }) { bet in
-                        DailyBetRowView(
-                            bet: bet,
-                            onStartReading: {
-                                handleStartReading(for: bet)
-                            },
-                            onStartNextDay: {
-                                handleStartNextDay(for: bet)
-                            }
-                        )
-                        .environmentObject(readSlipViewModel)
-                    }
+    
+    // ... rest of your existing code (progressSummaryCard, filterSection, emptyStateView, etc.)
+    private var progressSummaryCard: some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Today's Progress")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.goodreadsBrown)
+                    Text(dailyBetsViewModel.getMotivationalMessage(
+                        from: readSlipViewModel.placedBets,
+                        readSlipViewModel: readSlipViewModel
+                    ))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.goodreadsAccent)
                 }
+                Spacer()
+                ZStack {
+                    Circle()
+                        .stroke(Color.goodreadsAccent.opacity(0.2), lineWidth: 6)
+                        .frame(width: 60, height: 60)
+                    Circle()
+                        .trim(from: 0, to: dailyProgressSummary.percentage)
+                        .stroke(
+                            dailyProgressSummary.percentage == 1.0 ? Color.green : Color.goodreadsBrown,
+                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        )
+                        .frame(width: 60, height: 60)
+                        .rotationEffect(.degrees(-90))
+                    Text("\(Int(dailyProgressSummary.percentage * 100))%")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.goodreadsBrown)
+                }
+            }
+            HStack(spacing: 20) {
+                StatItem(label: "Completed", value: "\(dailyProgressSummary.completed)", color: .green)
+                StatItem(label: "Remaining", value: "\(dailyProgressSummary.total - dailyProgressSummary.completed)", color: .orange)
+                StatItem(label: "Total Goals", value: "\(dailyProgressSummary.total)", color: .goodreadsBrown)
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.goodreadsWarm)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
+        )
+        .padding(.horizontal, 20)
+    }
+    
+    private var filterSection: some View {
+        HStack(spacing: 12) {
+            ForEach(FilterOption.allCases, id: \.self) { option in
+                FilterPill(
+                    option: option,
+                    isSelected: selectedFilter == option,
+                    action: { selectedFilter = option }
+                )
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 16)
     }
-
-    private var groupedDailyBets: [(String, [DailyBet])] {
-        let grouped = Dictionary(grouping: dailyBetsViewModel.dailyBets) { $0.book.title }
-        return grouped.map { ($0.key, $0.value) }.sorted { $0.0 < $1.0 }
-    }
-
-    // UPDATED: Different behavior for first read vs continue
-    private func handleStartReading(for bet: DailyBet) {
-        let lastReadPage = readSlipViewModel.getLastReadPage(for: bet.betId)
-        
-        if lastReadPage <= bet.book.readingStartPage {
-            // FIRST TIME READING - Start immediately without confirmation
-            let startingPage = bet.book.readingStartPage
-            print("DEBUG: First reading session, starting directly at page \(startingPage)")
-            
-            // Use direct start method to bypass confirmation
-            sessionViewModel.startReadingSessionDirect(
-                for: bet.betId,
-                book: bet.book,
-                startingPage: startingPage
-            )
-        } else {
-            // CONTINUE READING - Use the normal flow which will show confirmation
-            print("DEBUG: Continue reading, showing confirmation. Last read: \(lastReadPage)")
-            
-            // This will trigger the confirmation view via showingStartPageConfirmation
-            sessionViewModel.startReadingSession(
-                for: bet.betId,
-                book: bet.book,
-                lastReadPage: lastReadPage
-            )
-        }
-    }
-
-    private func handleStartNextDay(for bet: DailyBet) {
-        print("DEBUG: Starting next day for bet \(bet.betId)")
-
-        guard let readingBet = readSlipViewModel.placedBets.first(where: { $0.id == bet.betId }) else {
-            print("DEBUG: No reading bet found")
-            return
-        }
-
-        let currentPage = readSlipViewModel.getCurrentPagePosition(for: bet.betId)
-        let currentDayTarget = readingBet.pagesPerDay * readingBet.currentDay
-
-        guard currentPage >= currentDayTarget else {
-            print("DEBUG: Current day not completed, cannot start next day")
-            return
-        }
-
-        guard readingBet.currentDay < readingBet.totalDays else {
-            print("DEBUG: Already on final day")
-            return
-        }
-
-        readSlipViewModel.startNextDay(for: bet.betId)
-        print("DEBUG: Next day revealed for bet \(bet.betId)")
-    }
-
-    // MARK: - Empty State
+    
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Spacer().frame(height: 80)
-            Image(systemName: "calendar.badge.clock")
+            Image(systemName: selectedFilter == .complete ? "checkmark.seal.fill" : "book.closed")
                 .font(.system(size: 48))
                 .foregroundColor(.goodreadsAccent.opacity(0.5))
-            Text("No Daily Goals")
-                .font(.system(size: 18, weight: .bold))
+            Text(emptyStateMessage)
+                .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.goodreadsBrown)
-            Text("Place a bet to see your daily reading goals")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.goodreadsAccent)
                 .multilineTextAlignment(.center)
-            Spacer()
+            if readSlipViewModel.placedBets.isEmpty && selectedFilter == .all {
+                Button(action: {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("NavigateToBookshelf"),
+                        object: nil
+                    )
+                }) {
+                    Text("Browse Books")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.goodreadsBrown)
+                        .cornerRadius(8)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 24)
+        .padding(.vertical, 60)
+        .padding(.horizontal, 40)
+    }
+    
+    private var emptyStateMessage: String {
+        switch selectedFilter {
+        case .all:
+            return readSlipViewModel.placedBets.isEmpty ? "No active reading goals.\nPlace a bet to get started!" : "No daily goals for today"
+        case .incomplete:
+            return "All daily goals completed!"
+        case .complete:
+            return "No completed goals yet today"
+        }
+    }
+}
+
+// NEW: Complete reading session flow view
+struct ReadingSessionFlow: View {
+    let bet: DailyBet
+    @ObservedObject var sessionViewModel: ReadingSessionViewModel
+    @ObservedObject var readSlipViewModel: ReadSlipViewModel
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        ZStack {
+            if sessionViewModel.showingStartPageInput {
+                StartingPageInputView(
+                    sessionViewModel: sessionViewModel,
+                    book: bet.book,
+                    lastReadPage: readSlipViewModel.getLastReadPage(for: bet.betId),
+                    onStart: { _ in }
+                )
+            } else if sessionViewModel.showingStartPageConfirmation {
+                ContinueReadingConfirmationView(
+                    sessionViewModel: sessionViewModel,
+                    book: bet.book,
+                    nextPage: sessionViewModel.calculatedNextPage,
+                    onConfirm: { }
+                )
+            } else if sessionViewModel.isReading {
+                ReadingTimerView(
+                    sessionViewModel: sessionViewModel,
+                    book: bet.book
+                )
+            } else if sessionViewModel.showingEndPageInput {
+                EndingPageInputView(
+                    sessionViewModel: sessionViewModel,
+                    book: bet.book,
+                    onComplete: { endingPage in
+                        // Process will continue to comment input
+                    }
+                )
+            } else if sessionViewModel.showingCommentInput {
+                CommentInputView(
+                    sessionViewModel: sessionViewModel,
+                    readSlipViewModel: readSlipViewModel,
+                    book: bet.book,
+                    onComplete: {
+                        isPresented = false
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("ReadingSessionCompleted"),
+                            object: nil
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+// Keep your existing StatItem and FilterPill structs as they are
+
+struct StatItem: View {
+    let label: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(color)
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.goodreadsAccent)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct FilterPill: View {
+    let option: DailyBetsView.FilterOption
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: option.icon)
+                    .font(.system(size: 12))
+                Text(option.rawValue)
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .foregroundColor(isSelected ? .white : .goodreadsBrown)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.goodreadsBrown : Color.goodreadsBeige)
+            )
+        }
     }
 }

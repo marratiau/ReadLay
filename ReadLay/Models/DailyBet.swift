@@ -16,6 +16,7 @@ struct DailyBet: Identifiable {
     let totalDays: Int
     let dayNumber: Int
     let betId: UUID // Reference to original bet
+    let pagesRequired: Int  // ADD THIS (was using wrong name)
 
     // ADDED: Multi-day tracking properties
     let startDate: Date
@@ -60,6 +61,7 @@ struct DailyBet: Identifiable {
         self.dayStartPage = dayStartPage
         self.dayEndPage = dayEndPage == 0 ? dailyGoal : dayEndPage
         self.isNextDay = isNextDay
+        self.pagesRequired = dailyGoal
     }
 
     // ADDED: Convenience properties for multi-day tracking

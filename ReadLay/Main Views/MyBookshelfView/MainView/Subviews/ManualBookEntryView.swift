@@ -30,7 +30,7 @@ struct ManualBookEntryView: View {
                     headerSection
                     inputFields
                     difficultySection
-                    addButtonSection
+                    nextButtonSection  // Changed from addButtonSection
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
@@ -74,7 +74,7 @@ struct ManualBookEntryView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
 
-                TextField("e.g., The Way of the Superior Man", text: $title)
+                TextField("e.g., The Great Gatsby", text: $title)
                     .font(.system(size: 16))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -94,7 +94,7 @@ struct ManualBookEntryView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.goodreadsBrown)
 
-                TextField("e.g., David Deida", text: $author)
+                TextField("e.g., F. Scott Fitzgerald", text: $author)
                     .font(.system(size: 16))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -183,9 +183,10 @@ struct ManualBookEntryView: View {
         }
     }
 
-    private var addButtonSection: some View {
-        Button(action: addBook) {
-            Text("Add to My Bookshelf")
+    // CHANGED: Button text to indicate next step
+    private var nextButtonSection: some View {
+        Button(action: createBook) {
+            Text("Next: Set Reading Goals")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -211,7 +212,7 @@ struct ManualBookEntryView: View {
         .ignoresSafeArea()
     }
 
-    private func addBook() {
+    private func createBook() {
         let spineColors: [Color] = [
             Color(red: 0.2, green: 0.4, blue: 0.8),
             Color(red: 0.1, green: 0.7, blue: 0.3),
@@ -235,6 +236,7 @@ struct ManualBookEntryView: View {
             difficulty: selectedDifficulty
         )
 
+        // CHANGED: Now passes book to parent to show page setup
         onBookAdded(book)
     }
 }

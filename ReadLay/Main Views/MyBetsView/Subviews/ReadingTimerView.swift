@@ -13,14 +13,12 @@ struct ReadingTimerView: View {
 
     var body: some View {
         ZStack {
-            // UPDATED: Full screen coverage including safe areas
             Color.goodreadsBrown
                 .ignoresSafeArea(.all)
 
             VStack(spacing: 40) {
                 Spacer()
 
-                // Book info
                 VStack(spacing: 12) {
                     Text("Reading")
                         .font(.system(size: 24, weight: .light))
@@ -38,7 +36,6 @@ struct ReadingTimerView: View {
                             .foregroundColor(.goodreadsBeige.opacity(0.8))
                     }
 
-                    // Show starting page
                     if let session = sessionViewModel.currentSession {
                         Text("Started on page \(session.startingPage)")
                             .font(.system(size: 16, weight: .medium))
@@ -50,23 +47,20 @@ struct ReadingTimerView: View {
 
                 Spacer()
 
-                // Timer
                 VStack(spacing: 16) {
                     Text("Time Elapsed")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.goodreadsBeige.opacity(0.7))
 
-                    if let session = sessionViewModel.currentSession {
-                        Text(session.formattedDuration)
-                            .font(.system(size: 72, weight: .thin, design: .monospaced))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    }
+                    // FIXED: Use displayTime instead of recalculating
+                    Text(sessionViewModel.displayTime)
+                        .font(.system(size: 72, weight: .thin, design: .monospaced))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
 
                 Spacer()
 
-                // Stop button
                 Button(action: {
                     sessionViewModel.stopReadingSession()
                 }) {
@@ -90,6 +84,6 @@ struct ReadingTimerView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .statusBarHidden() // Hide status bar for maximum focus
+        .statusBarHidden()
     }
 }
