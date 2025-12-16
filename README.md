@@ -36,3 +36,9 @@ ReadLay is an iOS app that gamifies reading by turning your goals into bets. Ins
    git clone https://github.com/marratiau/ReadLay.git
    cd ReadLay
 
+---
+
+## Screenshots
+
+<img width="331" height="701" alt="Screenshot 2025-12-16 at 2 39 12 PM" src="https://github.com/user-attachments/assets/6ed6502b-b8fa-4d71-a61a-5673ffa17de4" />
+<img width="321" height="641" alt="Screenshot 2025-12-16 at 2 39 37 PM" src="https://github.com/user-attachments/assets/e678ae33-6713-404a-b4d6-d6ce0f9cae57" />
