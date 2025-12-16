@@ -14,13 +14,13 @@ struct SpineView: View {
     private var spineWidth: CGFloat {
         switch book.totalPages {
         case 0..<200:
-            return 24 // Thin books
+            return 28 // Thin books
         case 200..<400:
-            return 30 // Medium books
+            return 36 // Medium books
         case 400..<600:
-            return 36 // Thick books
+            return 44 // Thick books
         default:
-            return 42 // Very thick books
+            return 50 // Very thick books
         }
     }
 
@@ -29,45 +29,45 @@ struct SpineView: View {
         let titleLength = book.title.count
         switch titleLength {
         case 0..<15:
-            return 9 // Short titles
+            return 10 // Short titles
         case 15..<25:
-            return 8 // Medium titles
+            return 9 // Medium titles
         case 25..<35:
-            return 7 // Long titles
+            return 8 // Long titles
         default:
-            return 6 // Very long titles
+            return 7 // Very long titles
         }
     }
 
     var body: some View {
         ZStack {
-            // Main spine background
-            RoundedRectangle(cornerRadius: 3)
+            // Main spine background - more rounded and minimalistic
+            RoundedRectangle(cornerRadius: 12)
                 .fill(
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            book.spineColor.opacity(0.95),
-                            book.spineColor.opacity(0.8),
-                            book.spineColor.opacity(0.95)
+                            book.spineColor.opacity(0.9),
+                            book.spineColor.opacity(0.75),
+                            book.spineColor.opacity(0.9)
                         ]),
                         startPoint: .leading,
                         endPoint: .trailing
                     )
                 )
-                .frame(width: spineWidth, height: 155) // DYNAMIC: Width varies, height fixed
+                .frame(width: spineWidth, height: 155)
 
-            // Title text - IMPROVED: Better scaling for long titles
+            // Title text
             Text(book.title)
-                .font(.system(size: titleFontSize, weight: .semibold))
+                .font(.nunitoSemiBold(size: titleFontSize))
                 .foregroundColor(.white)
-                .lineLimit(5) // INCREASED: More lines for very long titles
+                .lineLimit(5)
                 .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.5) // INCREASED: Can shrink up to 50%
+                .minimumScaleFactor(0.5)
                 .rotationEffect(.degrees(-90))
-                .frame(width: 140, height: spineWidth - 4) // CONSTRAINED: Height matches spine width
-                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
+                .frame(width: 140, height: spineWidth - 6)
+                .shadow(color: .black.opacity(0.15), radius: 1, x: 0, y: 1)
         }
-        .frame(width: spineWidth, height: 155) // ENFORCED: Exact dimensions
-        .clipped() // CRITICAL: Prevents any overflow that could change height
+        .frame(width: spineWidth, height: 155)
+        .clipped()
     }
 }

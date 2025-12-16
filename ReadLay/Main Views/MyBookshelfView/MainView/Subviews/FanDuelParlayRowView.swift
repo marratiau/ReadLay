@@ -51,14 +51,14 @@ struct FanDuelParlayRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             // Book cover
             bookCover
 
             // Book info
             bookInfo
 
-            Spacer()
+            Spacer(minLength: 4)
 
             if hasActiveBets {
                 // Active bet indicator
@@ -72,9 +72,9 @@ struct FanDuelParlayRowView: View {
             closeButton
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(cardBackground)
-        .frame(height: 72)
+        .frame(height: 75)
         .onAppear {
             dayText = String(dayCount)
             weekText = String(weekCount)
@@ -91,8 +91,8 @@ struct FanDuelParlayRowView: View {
                 Button("Done") {
                     hideKeyboard()
                 }
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.goodreadsBrown)
+                .font(.nunitoSemiBold(size: 16))
+                .foregroundColor(.readlayMediumBlue)
             }
         }
         // REMOVED: .sheet presentation - no longer needed here
@@ -109,7 +109,7 @@ struct FanDuelParlayRowView: View {
                 } placeholder: {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(currentBook.spineColor.opacity(0.8))
-                        .overlay(ProgressView().scaleEffect(0.6).tint(.white))
+                        .overlay(ProgressView().scaleEffect(0.8).tint(.white))
                 }
             } else {
                 RoundedRectangle(cornerRadius: 4)
@@ -117,80 +117,80 @@ struct FanDuelParlayRowView: View {
                     .overlay(
                         VStack(spacing: 1) {
                             Image(systemName: "book.closed.fill")
-                                .font(.system(size: 12))
+                                .font(.system(size: 14))
                                 .foregroundColor(.white.opacity(0.9))
                             Text(currentBook.title.prefix(1))
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.nunitoBold(size: 12))
                                 .foregroundColor(.white)
                         }
                     )
             }
         }
-        .frame(width: 32, height: 48)
+        .frame(width: 36, height: 54)
         .cornerRadius(4)
-        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
     }
 
     // MARK: - Book Info
     private var bookInfo: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 Text(currentBook.title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.goodreadsBrown)
+                    .font(.nunitoBold(size: 15))
+                    .foregroundColor(.readlayDarkBrown)
                     .lineLimit(1)
 
-                // Setup button - CHANGED: Now calls the callback instead of showing sheet
+                // Setup button
                 Button(action: {
                     hideKeyboard()
-                    onEditPreferences?()  // CHANGED: Call the parent's handler
+                    onEditPreferences?()
                 }) {
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.goodreadsAccent.opacity(0.7))
+                        .font(.system(size: 11))
+                        .foregroundColor(.readlayTan.opacity(0.7))
                 }
             }
 
             if let author = currentBook.author {
                 Text(author)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.goodreadsAccent)
+                    .font(.nunitoMedium(size: 11))
+                    .foregroundColor(.readlayTan)
                     .lineLimit(1)
             }
 
             // Page info or reading preference
             if currentBook.hasCustomReadingPreferences {
                 Text(currentBook.readingPreferenceSummary)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.blue)
+                    .font(.nunitoMedium(size: 9))
+                    .foregroundColor(.readlayLightBlue)
                     .lineLimit(1)
             } else {
                 Text("\(currentBook.effectiveTotalPages) pages")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.goodreadsAccent.opacity(0.8))
+                    .font(.nunitoMedium(size: 9))
+                    .foregroundColor(.readlayTan.opacity(0.8))
             }
         }
-        .frame(width: 120, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Active Bet Indicator
     private var activeBetIndicator: some View {
         HStack(spacing: 6) {
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 3) {
                 Text("IN PROGRESS")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.nunitoBold(size: 9))
                     .foregroundColor(.white)
                     .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.blue)
+                            .fill(Color.readlayLightBlue)
                     )
 
                 if let readingBet = readSlipViewModel.getActiveReadingBet(for: currentBook.id) {
                     Text(readingBet.formattedTimeRemaining)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.blue)
+                        .font(.nunitoSemiBold(size: 11))
+                        .foregroundColor(.readlayLightBlue)
                 }
             }
 
@@ -199,16 +199,12 @@ struct FanDuelParlayRowView: View {
                 onNavigateToActiveBets?()
             }) {
                 Text("View")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.goodreadsBrown)
-                    .frame(width: 44, height: 32)
+                    .font(.nunitoBold(size: 12))
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 32)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.goodreadsBeige)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
-                            )
+                            .fill(Color.readlayMediumBlue)
                     )
             }
         }
@@ -257,22 +253,22 @@ struct FanDuelParlayRowView: View {
     ) -> some View {
         VStack(spacing: 1) {
             TextField("1", text: textBinding)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.goodreadsBrown)
+                .font(.nunitoBold(size: 11))
+                .foregroundColor(.readlayDarkBrown)
                 .multilineTextAlignment(.center)
                 .keyboardType(.numberPad)
                 .focused(focusState)
-                .frame(width: 18, height: 14)
+                .frame(width: 22, height: 16)
                 .background(
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.goodreadsBeige.opacity(0.8))
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.readlayCream.opacity(0.3))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 2)
+                            RoundedRectangle(cornerRadius: 4)
                                 .stroke(
                                     focusState.wrappedValue ?
-                                        Color.goodreadsBrown.opacity(0.7) :
-                                        Color.goodreadsAccent.opacity(0.4),
-                                    lineWidth: focusState.wrappedValue ? 1 : 0.5
+                                        Color.readlayMediumBlue.opacity(0.7) :
+                                        Color.readlayTan.opacity(0.4),
+                                    lineWidth: focusState.wrappedValue ? 1.5 : 1
                                 )
                         )
                 )
@@ -284,8 +280,8 @@ struct FanDuelParlayRowView: View {
                 }
 
             Text(unit)
-                .font(.system(size: 6, weight: .semibold))
-                .foregroundColor(.goodreadsAccent.opacity(0.7))
+                .font(.nunitoSemiBold(size: 7))
+                .foregroundColor(.readlayTan.opacity(0.7))
                 .textCase(.uppercase)
                 .lineLimit(1)
 
@@ -301,19 +297,12 @@ struct FanDuelParlayRowView: View {
                 }
             }) {
                 Text(calculateOdds(totalDays: totalDays))
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(selectedOdds == calculateOdds(totalDays: totalDays) ? .white : .goodreadsBrown)
-                    .frame(width: 44, height: 20)
+                    .font(.nunitoBold(size: 12))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 22)
                     .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(selectedOdds == calculateOdds(totalDays: totalDays) ? Color.goodreadsBrown : Color.goodreadsBeige)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(
-                                        selectedOdds == calculateOdds(totalDays: totalDays) ? Color.clear : Color.goodreadsAccent.opacity(0.3),
-                                        lineWidth: 1
-                                    )
-                            )
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(selectedOdds == calculateOdds(totalDays: totalDays) ? Color.readlayDarkBrown : Color.readlayMediumBlue)
                     )
             }
             .scaleEffect(selectedOdds == calculateOdds(totalDays: totalDays) ? 1.05 : 1.0)
@@ -328,24 +317,24 @@ struct FanDuelParlayRowView: View {
             onClose()
         }) {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 16))
-                .foregroundColor(.goodreadsAccent.opacity(0.6))
-                .background(Circle().fill(Color.goodreadsBeige))
+                .font(.system(size: 18))
+                .foregroundColor(.readlayTan.opacity(0.6))
+                .background(Circle().fill(Color.white))
         }
     }
 
     // MARK: - Card Background
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(hasActiveBets ? Color.blue.opacity(0.1) : Color.goodreadsWarm)
+            .fill(hasActiveBets ? Color.readlayLightBlue.opacity(0.1) : Color.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(
-                        hasActiveBets ? Color.blue.opacity(0.3) : Color.goodreadsAccent.opacity(0.2),
+                        hasActiveBets ? Color.readlayLightBlue.opacity(0.3) : Color.readlayTan.opacity(0.2),
                         lineWidth: hasActiveBets ? 2 : 1
                     )
             )
-            .shadow(color: Color.goodreadsBrown.opacity(0.15), radius: 8, x: 0, y: 4)
+            .shadow(color: Color.readlayDarkBrown.opacity(0.1), radius: 6, x: 0, y: 3)
     }
 
     // MARK: - Helper Methods
@@ -396,23 +385,7 @@ struct FanDuelParlayRowView: View {
     }
 
     private func calculateOdds(totalDays: Int) -> String {
-        let baseMultiplier = currentBook.difficulty.multiplier
-        let pagesPerDay = Double(currentBook.effectiveTotalPages) / Double(totalDays)
-
-        let difficultyFactor: Double
-        if totalDays <= 3 {
-            difficultyFactor = min(pagesPerDay / 15.0, 10.0)
-        } else if totalDays <= 7 {
-            difficultyFactor = min(pagesPerDay / 20.0, 8.0)
-        } else if totalDays <= 21 {
-            difficultyFactor = min(pagesPerDay / 12.0, 4.0)
-        } else {
-            difficultyFactor = min(pagesPerDay / 8.0, 2.0)
-        }
-
-        let finalOdds = 100 + Int((difficultyFactor * baseMultiplier * 40))
-        let clampedOdds = min(max(finalOdds, 105), 999)
-
-        return "+\(clampedOdds)"
+        // Use centralized OddsCalculator for consistency
+        return OddsCalculator.calculateReadingOdds(book: currentBook, timeframeDays: totalDays)
     }
 }

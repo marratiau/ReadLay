@@ -10,7 +10,7 @@ import SwiftUI
 struct MyBetsView: View {
     @State private var selectedTab = 0
     private let tabs = ["DAILY", "ACTIVE", "SETTLED"]
-    @State private var currentTime = Date()
+    @State private var currentTime: Date = .now
 
     var body: some View {
         VStack(spacing: 0) {
@@ -95,11 +95,11 @@ struct MyBetsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("My Bets")
                     .font(.system(size: 28, weight: .bold, design: .serif))
-                    .foregroundColor(.goodreadsBrown)
+                    .foregroundColor(.readlayDarkBrown)
 
                 Text("Track your reading progress")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.goodreadsAccent)
+                    .font(.nunitoMedium(size: 14))
+                    .foregroundColor(.readlayTan)
             }
 
             Spacer()
@@ -132,3 +132,5 @@ struct MyBetsView: View {
         return formatter.string(from: currentTime)
     }
 }
+
+

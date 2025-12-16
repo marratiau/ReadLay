@@ -7,10 +7,16 @@
 
 import SwiftUI
 
-//Tab view that contains links to the 4 main views
+// Tab view that contains links to the 4 main views
 struct MainTabView: View {
-    @StateObject private var readSlipViewModel = ReadSlipViewModel()
-    @State private var selectedTab = 0
+    @EnvironmentObject var authManager: AuthenticationManager
+    @StateObject private var readSlipViewModel: ReadSlipViewModel
+    @State private var selectedTab = 0 //We are telling the view to watch the state of the this varialbe selectedtab.
+
+    init() {
+        // Initialize with default - will update in onAppear with actual userId
+        _readSlipViewModel = StateObject(wrappedValue: ReadSlipViewModel())
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -50,9 +56,15 @@ struct MainTabView: View {
                 selectedTab = 1 // Switch to My Bets tab
             }
         }
+        .onAppear {
+            // Set current user in ReadSlipViewModel when view appears
+            if let userId = authManager.currentUser?.id {
+                readSlipViewModel.setCurrentUser(userId: userId)
+            }
+        }
     }
 }
 
-#Preview {
-    MainTabView()
-}
+//#Preview {
+//    MainTabView()
+//}

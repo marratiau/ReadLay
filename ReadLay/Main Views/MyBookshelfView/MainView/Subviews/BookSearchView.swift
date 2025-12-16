@@ -23,7 +23,8 @@ struct BookSearchView: View {
     @State private var cachedResults: [SearchResult] = []
     @State private var lastSearchText: String = ""
     @FocusState private var isSearchFocused: Bool
-    
+
+    let currentBookCount: Int
     let onBookSelected: (Book) -> Void
     
     private var allResults: [SearchResult] {
@@ -42,46 +43,39 @@ struct BookSearchView: View {
     }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                simplifiedSearchBar
-                if let errorMessage = errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: 12))
-                        .foregroundColor(.red)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 4)
-                }
-                contentSection
+        VStack(spacing: 0) {
+            // Custom header with back button and search bar
+            customHeader
+
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+                    .font(.nunitoMedium(size: 12))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
             }
-            .background(Color.goodreadsBeige)
-            .navigationTitle("Add Book")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(.goodreadsAccent)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Manual") {
-                        showingManualEntry = true
-                    }
-                    .foregroundColor(.goodreadsBrown)
-                    .font(.system(size: 14, weight: .medium))
-                }
-            }
+
+            contentSection
         }
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white,
+                    Color.readlayPaleMint.opacity(0.2)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         .sheet(isPresented: $showingManualEntry) {
-            ManualBookEntryView { book in
+            ManualBookEntryView(currentBookCount: currentBookCount) { book in
                 selectedBookForSetup = book
                 showingPageSetup = true
                 showingManualEntry = false
             }
         }
         .sheet(isPresented: $showingISBNLookup) {
-            ISBNLookupView { book in
+            ISBNLookupView(currentBookCount: currentBookCount) { book in
                 selectedBookForSetup = book
                 showingPageSetup = true
                 showingISBNLookup = false
@@ -104,76 +98,58 @@ struct BookSearchView: View {
 
     }
     
-    private var simplifiedSearchBar: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.goodreadsAccent)
-                    .font(.system(size: 16))
-                TextField("Search for books...", text: $searchText)
-                    .font(.system(size: 16))
-                    .foregroundColor(.goodreadsBrown)
-                    .submitLabel(.search)
-                    .focused($isSearchFocused)
-                    .onSubmit {
-                        isSearchFocused = false
-                        performSearch()
+    // Custom header with back button and search bar
+    private var customHeader: some View {
+        VStack(spacing: 16) {
+            // Search bar with back button
+            HStack(spacing: 12) {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.readlayDarkBrown)
+                        .frame(width: 44, height: 44)
+                }
+
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.readlayTan.opacity(0.6))
+                        .font(.system(size: 18))
+
+                    TextField("Search for books...", text: $searchText)
+                        .font(.nunitoMedium(size: 16))
+                        .foregroundColor(.readlayDarkBrown)
+                        .submitLabel(.search)
+                        .focused($isSearchFocused)
+                        .onSubmit {
+                            isSearchFocused = false
+                            performSearch()
+                        }
+
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            clearResults()
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.readlayTan.opacity(0.5))
+                                .font(.system(size: 20))
+                        }
                     }
-                if !searchText.isEmpty {
-                    Button(action: {
-                        searchText = ""
-                        clearResults()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.goodreadsAccent.opacity(0.6))
-                    }
                 }
-                Button(action: {
-                    isSearchFocused = false
-                    performSearch()
-                }) {
-                    Text("Search")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.goodreadsBrown)
-                        .cornerRadius(6)
-                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: .readlayDarkBrown.opacity(0.08), radius: 8, x: 0, y: 2)
+                )
             }
-            .padding(12)
-            .background(Color.goodreadsBeige)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.goodreadsAccent.opacity(0.3), lineWidth: 1)
-            )
-            HStack(spacing: 8) {
-                Button(action: {
-                    showingISBNLookup = true
-                }) {
-                    Label("ISBN", systemImage: "barcode.viewfinder")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.goodreadsBrown)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(Color.goodreadsWarm)
-                        .cornerRadius(6)
-                }
-                Button(action: {
-                    showingManualEntry = true
-                }) {
-                    Label("Manual", systemImage: "plus.circle")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.goodreadsBrown)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(Color.goodreadsWarm)
-                        .cornerRadius(6)
-                }
-            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .background(Color.white)
     }
     
     @ViewBuilder
@@ -190,66 +166,122 @@ struct BookSearchView: View {
     }
     
     private var searchingView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
             ProgressView()
+                .scaleEffect(1.2)
+                .tint(.readlayMediumBlue)
             Text("Searching...")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.goodreadsAccent)
+                .font(.nunitoMedium(size: 17))
+                .foregroundColor(.readlayTan)
             Spacer()
         }
     }
-    
+
     private var noResultsView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
             Image(systemName: "books.vertical")
-                .font(.system(size: 48))
-                .foregroundColor(.goodreadsAccent.opacity(0.5))
+                .font(.system(size: 56))
+                .foregroundColor(.readlayTan.opacity(0.4))
             Text("No books found")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.goodreadsBrown)
+                .font(.nunitoBold(size: 22))
+                .foregroundColor(.readlayDarkBrown)
             Text("Try a different search")
-                .font(.system(size: 14))
-                .foregroundColor(.goodreadsAccent)
+                .font(.nunitoMedium(size: 15))
+                .foregroundColor(.readlayTan.opacity(0.8))
             Spacer()
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 32)
     }
     
     private var optimizedResultsView: some View {
-        List(allResults, id: \.id) { result in
-            SimplifiedResultRow(
-                result: result,
-                onSelect: {
-                    let book = result.toBook()
-                    selectedBookForSetup = book
-                    showingPageSetup = true
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(allResults, id: \.id) { result in
+                    SimplifiedResultRow(
+                        result: result,
+                        onSelect: {
+                            let book = result.toBook(bookIndex: currentBookCount)
+                            selectedBookForSetup = book
+                            showingPageSetup = true
+                        }
+                    )
                 }
-            )
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
     }
     
     private var simpleEmptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 32) {
             Spacer()
-            Image(systemName: "text.magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundColor(.goodreadsAccent.opacity(0.5))
-            Text("Search for books")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.goodreadsBrown)
-            Text("Enter title or author above")
-                .font(.system(size: 14))
-                .foregroundColor(.goodreadsAccent)
+
+            VStack(spacing: 16) {
+                Image(systemName: "text.magnifyingglass")
+                    .font(.system(size: 56))
+                    .foregroundColor(.readlayTan.opacity(0.4))
+
+                Text("Find Your Next Book")
+                    .font(.nunitoBold(size: 24))
+                    .foregroundColor(.readlayDarkBrown)
+
+                Text("Search by title or author above")
+                    .font(.nunitoMedium(size: 15))
+                    .foregroundColor(.readlayTan.opacity(0.8))
+            }
+
+            VStack(spacing: 16) {
+                // ISBN Scan button - centered, larger
+                Button(action: {
+                    showingISBNLookup = true
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "barcode.viewfinder")
+                            .font(.system(size: 22, weight: .semibold))
+                        Text("Scan ISBN")
+                            .font(.nunitoBold(size: 18))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 280)
+                    .frame(height: 56)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.readlayMediumBlue)
+                            .shadow(color: .readlayMediumBlue.opacity(0.3), radius: 12, x: 0, y: 4)
+                    )
+                }
+
+                // Manual Entry button - centered, larger
+                Button(action: {
+                    showingManualEntry = true
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 22, weight: .semibold))
+                        Text("Enter Manually")
+                            .font(.nunitoBold(size: 18))
+                    }
+                    .foregroundColor(.readlayMediumBlue)
+                    .frame(maxWidth: 280)
+                    .frame(height: 56)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.readlayMediumBlue, lineWidth: 2)
+                            )
+                            .shadow(color: .readlayDarkBrown.opacity(0.08), radius: 8, x: 0, y: 2)
+                    )
+                }
+            }
+
             Spacer()
         }
+        .padding(.horizontal, 32)
     }
     
     private func clearResults() {
@@ -325,13 +357,14 @@ struct BookSearchView: View {
 struct SimplifiedResultRow: View {
     let result: SearchResult
     let onSelect: () -> Void
-    
+
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.goodreadsBeige)
-                    .frame(width: 50, height: 70)
+            HStack(spacing: 14) {
+                // Book cover
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.readlayCream.opacity(0.3))
+                    .frame(width: 56, height: 80)
                     .overlay(
                         Group {
                             if let url = result.coverURL {
@@ -340,47 +373,60 @@ struct SimplifiedResultRow: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
                                 } placeholder: {
-                                    Image(systemName: "book.closed")
-                                        .foregroundColor(.goodreadsAccent)
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                        .tint(.readlayTan)
                                 }
                             } else {
-                                Image(systemName: "book.closed")
-                                    .foregroundColor(.goodreadsAccent)
+                                Image(systemName: "book.closed.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(.readlayTan.opacity(0.5))
                             }
                         }
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                
-                VStack(alignment: .leading, spacing: 4) {
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .shadow(color: .readlayDarkBrown.opacity(0.08), radius: 4, x: 0, y: 2)
+
+                VStack(alignment: .leading, spacing: 6) {
                     Text(result.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.goodreadsBrown)
+                        .font(.nunitoBold(size: 16))
+                        .foregroundColor(.readlayDarkBrown)
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
                     if let author = result.author {
                         Text(author)
-                            .font(.system(size: 13))
-                            .foregroundColor(.goodreadsAccent)
+                            .font(.nunitoMedium(size: 14))
+                            .foregroundColor(.readlayTan)
                             .lineLimit(1)
                     }
-                    HStack(spacing: 6) {
+
+                    HStack(spacing: 8) {
                         Text("\(result.pageCount) pages")
-                            .font(.system(size: 11))
-                            .foregroundColor(.goodreadsAccent.opacity(0.8))
+                            .font(.nunitoMedium(size: 12))
+                            .foregroundColor(.readlayTan.opacity(0.7))
+
                         Text("•")
-                            .foregroundColor(.goodreadsAccent.opacity(0.5))
+                            .foregroundColor(.readlayTan.opacity(0.4))
+
                         Text(result.source)
-                            .font(.system(size: 11))
-                            .foregroundColor(.goodreadsAccent.opacity(0.8))
+                            .font(.nunitoMedium(size: 12))
+                            .foregroundColor(.readlayTan.opacity(0.7))
                     }
                 }
+
                 Spacer()
-                Image(systemName: "arrow.right.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(.goodreadsBrown)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.readlayTan.opacity(0.5))
             }
-            .padding(12)
-            .background(Color.goodreadsWarm)
-            .cornerRadius(10)
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+                    .shadow(color: .readlayDarkBrown.opacity(0.06), radius: 8, x: 0, y: 2)
+            )
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -444,17 +490,7 @@ enum SearchResult: Identifiable {
         }
     }
     
-    func toBook() -> Book {
-        let spineColors: [Color] = [
-            Color(red: 0.2, green: 0.4, blue: 0.8),
-            Color(red: 0.1, green: 0.7, blue: 0.3),
-            Color(red: 0.9, green: 0.5, blue: 0.1),
-            Color(red: 0.6, green: 0.2, blue: 0.8),
-            Color(red: 0.8, green: 0.1, blue: 0.1),
-            Color(red: 0.1, green: 0.6, blue: 0.7),
-            Color(red: 0.7, green: 0.6, blue: 0.1),
-            Color(red: 0.3, green: 0.1, blue: 0.6)
-        ]
+    func toBook(bookIndex: Int = 0) -> Book {
         let difficulty: Book.ReadingDifficulty
         if pageCount < 250 {
             difficulty = .easy
@@ -468,10 +504,11 @@ enum SearchResult: Identifiable {
             title: title,
             author: author,
             totalPages: pageCount,
+            totalChapters: nil,  // TODO: Extract from API if available
             coverImageName: nil,
             coverImageURL: coverURL,
             googleBooksId: id,
-            spineColor: spineColors.randomElement() ?? Color.goodreadsBrown,
+            spineColor: Color.readlaySpineColor(index: bookIndex),
             difficulty: difficulty
         )
     }

@@ -15,6 +15,7 @@ struct ManualBookEntryView: View {
     @State private var selectedDifficulty: Book.ReadingDifficulty = .medium
     @State private var coverImageURL = ""
 
+    let currentBookCount: Int
     let onBookAdded: (Book) -> Void
 
     var isValidInput: Bool {
@@ -56,11 +57,11 @@ struct ManualBookEntryView: View {
                 .foregroundColor(.goodreadsBrown)
 
             Text("Add Your Book")
-                .font(.system(size: 24, weight: .bold))
+                .font(.nunitoBold(size: 24))
                 .foregroundColor(.goodreadsBrown)
 
             Text("Enter the details of your book manually")
-                .font(.system(size: 14, weight: .medium))
+                .font(.nunitoMedium(size: 14))
                 .foregroundColor(.goodreadsAccent)
                 .multilineTextAlignment(.center)
         }
@@ -71,11 +72,11 @@ struct ManualBookEntryView: View {
             // Title field
             VStack(alignment: .leading, spacing: 8) {
                 Text("Book Title *")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.nunitoSemiBold(size: 14))
                     .foregroundColor(.goodreadsBrown)
 
                 TextField("e.g., The Great Gatsby", text: $title)
-                    .font(.system(size: 16))
+                    .font(.nunitoMedium(size: 16))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(
@@ -91,11 +92,11 @@ struct ManualBookEntryView: View {
             // Author field
             VStack(alignment: .leading, spacing: 8) {
                 Text("Author")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.nunitoSemiBold(size: 14))
                     .foregroundColor(.goodreadsBrown)
 
                 TextField("e.g., F. Scott Fitzgerald", text: $author)
-                    .font(.system(size: 16))
+                    .font(.nunitoMedium(size: 16))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(
@@ -111,11 +112,11 @@ struct ManualBookEntryView: View {
             // Pages field
             VStack(alignment: .leading, spacing: 8) {
                 Text("Number of Pages *")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.nunitoSemiBold(size: 14))
                     .foregroundColor(.goodreadsBrown)
 
                 TextField("e.g., 250", text: $pages)
-                    .font(.system(size: 16))
+                    .font(.nunitoMedium(size: 16))
                     .keyboardType(.numberPad)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -132,11 +133,11 @@ struct ManualBookEntryView: View {
             // Cover URL field (optional)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Cover Image URL (Optional)")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.nunitoSemiBold(size: 14))
                     .foregroundColor(.goodreadsBrown)
 
                 TextField("https://example.com/cover.jpg", text: $coverImageURL)
-                    .font(.system(size: 16))
+                    .font(.nunitoMedium(size: 16))
                     .keyboardType(.URL)
                     .autocapitalization(.none)
                     .padding(.horizontal, 16)
@@ -156,7 +157,7 @@ struct ManualBookEntryView: View {
     private var difficultySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Reading Difficulty")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.nunitoSemiBold(size: 14))
                 .foregroundColor(.goodreadsBrown)
 
             HStack(spacing: 12) {
@@ -165,7 +166,7 @@ struct ManualBookEntryView: View {
                         selectedDifficulty = difficulty
                     }) {
                         Text(difficulty.displayName)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.nunitoMedium(size: 14))
                             .foregroundColor(selectedDifficulty == difficulty ? .white : .goodreadsBrown)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
@@ -187,7 +188,7 @@ struct ManualBookEntryView: View {
     private var nextButtonSection: some View {
         Button(action: createBook) {
             Text("Next: Set Reading Goals")
-                .font(.system(size: 18, weight: .bold))
+                .font(.nunitoBold(size: 18))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
@@ -213,26 +214,16 @@ struct ManualBookEntryView: View {
     }
 
     private func createBook() {
-        let spineColors: [Color] = [
-            Color(red: 0.2, green: 0.4, blue: 0.8),
-            Color(red: 0.1, green: 0.7, blue: 0.3),
-            Color(red: 0.9, green: 0.5, blue: 0.1),
-            Color(red: 0.6, green: 0.2, blue: 0.8),
-            Color(red: 0.8, green: 0.1, blue: 0.1),
-            Color(red: 0.1, green: 0.6, blue: 0.7),
-            Color(red: 0.7, green: 0.6, blue: 0.1),
-            Color(red: 0.3, green: 0.1, blue: 0.6)
-        ]
-
         let book = Book(
             id: UUID(),
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             author: author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author.trimmingCharacters(in: .whitespacesAndNewlines),
             totalPages: Int(pages) ?? 250,
+            totalChapters: nil,  // TODO: Add chapter count field for manual entry
             coverImageName: nil,
             coverImageURL: coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines),
             googleBooksId: nil,
-            spineColor: spineColors.randomElement() ?? Color.goodreadsBrown,
+            spineColor: Color.readlaySpineColor(index: currentBookCount),
             difficulty: selectedDifficulty
         )
 

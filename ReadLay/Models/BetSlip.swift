@@ -3,6 +3,7 @@
 //  ReadLay
 //
 //  Created by Mateo Arratia on 6/10/25.
+//  Modified for parlay calculations
 //
 
 import SwiftUI
@@ -31,14 +32,79 @@ struct BetSlip {
     var totalPayout: Double {
         return totalWager + totalPotentialWin
     }
+    
+    // NEW: Check if this is a parlay
+    var isParlay: Bool {
+        return totalBets > 1
+    }
+    
+    // NEW: Calculate combined parlay odds
+    func calculateParlayOdds() -> String {
+        guard isParlay else {
+            // If single bet, return the single odds
+            if let firstBet = readingBets.first {
+                return firstBet.odds
+            } else if let firstEngagement = engagementBets.first {
+                return firstEngagement.odds
+            }
+            return "+100"
+        }
+        
+        // Calculate parlay multiplier
+        var multiplier = 1.0
+        
+        // Process reading bets
+        for bet in readingBets {
+            let oddsValue = parseOdds(bet.odds)
+            let decimalOdds = 1.0 + (Double(oddsValue) / 100.0)
+            multiplier *= decimalOdds
+        }
+        
+        // Process engagement bets
+        for bet in engagementBets {
+            let oddsValue = parseOdds(bet.odds)
+            let decimalOdds = 1.0 + (Double(oddsValue) / 100.0)
+            multiplier *= decimalOdds
+        }
+        
+        // Convert back to American odds
+        let americanOdds = Int((multiplier - 1.0) * 100)
+        return "+\(americanOdds)"
+    }
+    
+    // NEW: Calculate parlay potential win
+    func calculateParlayPotentialWin(wager: Double) -> Double {
+        let parlayOdds = calculateParlayOdds()
+        let oddsValue = parseOdds(parlayOdds)
+        return wager * (Double(oddsValue) / 100.0)
+    }
+    
+    // NEW: Get parlay legs description
+    var parlayDescription: String {
+        guard isParlay else { return "" }
+        return "\(totalBets)-Leg Parlay"
+    }
+    
+    private func parseOdds(_ odds: String) -> Int {
+        let cleanOdds = odds.replacingOccurrences(of: "+", with: "")
+        return Int(cleanOdds) ?? 100
+    }
 
-    // FIXED: Use effective pages for bet creation
-    mutating func addReadingBet(book: Book, timeframe: String, odds: String) {
+    // FIXED: Use effective pages for bet creation, with chapter support
+    mutating func addReadingBet(book: Book, timeframe: String, odds: String, goalUnit: ReadingPreferences.GoalUnit = .pages) {
         readingBets.removeAll { $0.book.id == book.id }
 
         let totalDays = calculateDays(from: timeframe)
-        // FIXED: Use effective pages for calculation
-        let pagesPerDay = Int(ceil(Double(book.effectiveTotalPages) / Double(totalDays)))
+
+        let (pagesPerDay, chaptersPerDay): (Int, Int?)
+        if goalUnit == .chapters && book.hasChapters {
+            pagesPerDay = 0  // Not used for chapter goals
+            chaptersPerDay = Int(ceil(Double(book.effectiveTotalChapters) / Double(totalDays)))
+        } else {
+            // Default to page-based goals
+            pagesPerDay = Int(ceil(Double(book.effectiveTotalPages) / Double(totalDays)))
+            chaptersPerDay = nil
+        }
 
         let newBet = ReadingBet(
             book: book,
@@ -46,7 +112,9 @@ struct BetSlip {
             odds: odds,
             wager: 10.0,
             pagesPerDay: pagesPerDay,
-            totalDays: totalDays
+            totalDays: totalDays,
+            goalUnit: goalUnit,
+            chaptersPerDay: chaptersPerDay
         )
         readingBets.append(newBet)
     }

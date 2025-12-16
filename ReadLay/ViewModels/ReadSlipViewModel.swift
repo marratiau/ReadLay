@@ -3,6 +3,7 @@
 //  ReadLay
 //
 //  Created by Mateo Arratia on 6/4/25.
+//  Modified for FanDuel-style parlay support
 //
 
 import SwiftUI
@@ -10,7 +11,7 @@ import Combine
 import CoreData
 
 // Consolidated progress tracking
-struct BetProgress {
+struct BetProgress: Equatable {
     var dailyProgress: Int = 0
     var totalPagesRead: Int = 0
     var currentPagePosition: Int = 0
@@ -22,35 +23,48 @@ class ReadSlipViewModel: ObservableObject {
     @Published var placedBets: [ReadingBet] = []
     @Published var placedEngagementBets: [EngagementBet] = []
     @Published var completedBets: [CompletedBet] = []
+    @Published var activeParlays: [ParlayBet] = []
     @Published var journalEntries: [JournalEntry] = [] {
         didSet {
-            // Limit journal entries to prevent infinite accumulation
             if journalEntries.count > 100 {
                 journalEntries = Array(journalEntries.prefix(100))
             }
         }
     }
     
-    // FIXED: Consolidated progress tracking
     @Published var betProgress: [UUID: BetProgress] = [:]
     @Published var engagementProgress: [UUID: [UUID: Int]] = [:]
     @Published var currentBalance: Double = 10.0
     
-    // OPTIMIZED: Add dictionaries for O(1) lookups
     private var betLookupByBookId: [UUID: ReadingBet] = [:]
     private var engagementBetLookupByBookId: [UUID: EngagementBet] = [:]
     private var betLookupById: [UUID: ReadingBet] = [:]
     private var engagementBetLookupById: [UUID: EngagementBet] = [:]
     
-    private var coreDataManager: CoreDataManager
+    // FIXED: Use CoreDataRepository instead of CoreDataManager
+    private var repository: CoreDataRepository
     private var cancellables = Set<AnyCancellable>()
-    
-    init(coreDataManager: CoreDataManager = .shared) {
-        self.coreDataManager = coreDataManager
+    private var currentUserId: UUID?
+
+    init(context: NSManagedObjectContext = PersistenceController.shared.container.viewContext, userId: UUID? = nil) {
+        self.repository = CoreDataRepository(context: context)
+        self.currentUserId = userId
+
+        if let userId = userId {
+            repository.setCurrentUser(userId: userId)
+        }
+
         loadPersistedData()
     }
+
+    // MARK: - User Management
+
+    func setCurrentUser(userId: UUID) {
+        self.currentUserId = userId
+        repository.setCurrentUser(userId: userId)
+        loadPersistedData() // Reload data for new user
+    }
     
-    // OPTIMIZED: Update lookup dictionaries when arrays change
     private func updateLookupDictionaries() {
         betLookupByBookId = Dictionary(uniqueKeysWithValues: placedBets.map { ($0.book.id, $0) })
         engagementBetLookupByBookId = Dictionary(uniqueKeysWithValues: placedEngagementBets.map { ($0.book.id, $0) })
@@ -59,17 +73,12 @@ class ReadSlipViewModel: ObservableObject {
     }
     
     private func loadPersistedData() {
-        coreDataManager.fetchJournalEntries { [weak self] entries in
-            self?.journalEntries = entries
+        do {
+            journalEntries = try repository.fetchJournalEntries()
+        } catch {
+            print("Failed to load journal entries: \(error)")
         }
     }
-
-    // In updateReadingProgress method, change:
-    // Instead of Task with async/await:
-    
-
-    // In addJournalEntry method, change:
-    
     
     // MARK: - Balance Management
     
@@ -93,14 +102,14 @@ class ReadSlipViewModel: ObservableObject {
         currentBalance = 10.0
     }
     
-    // MARK: - Book Protection Logic (OPTIMIZED)
+    // MARK: - Book Protection Logic
     
     func hasActiveReadingBet(for bookId: UUID) -> Bool {
-        return betLookupByBookId[bookId] != nil  // O(1) instead of O(n)
+        return betLookupByBookId[bookId] != nil
     }
     
     func hasActiveEngagementBet(for bookId: UUID) -> Bool {
-        return engagementBetLookupByBookId[bookId] != nil  // O(1) instead of O(n)
+        return engagementBetLookupByBookId[bookId] != nil
     }
     
     func hasActiveBets(for bookId: UUID) -> Bool {
@@ -108,23 +117,89 @@ class ReadSlipViewModel: ObservableObject {
     }
     
     func getActiveReadingBet(for bookId: UUID) -> ReadingBet? {
-        return betLookupByBookId[bookId]  // O(1) instead of O(n)
+        return betLookupByBookId[bookId]
     }
     
     func getActiveEngagementBet(for bookId: UUID) -> EngagementBet? {
-        return engagementBetLookupByBookId[bookId]  // O(1) instead of O(n)
+        return engagementBetLookupByBookId[bookId]
     }
     
-    // OPTIMIZED: Add methods for bet lookup by ID
     func getReadingBet(by id: UUID) -> ReadingBet? {
-        return betLookupById[id]  // O(1) instead of O(n)
+        return betLookupById[id]
     }
     
     func getEngagementBet(by id: UUID) -> EngagementBet? {
-        return engagementBetLookupById[id]  // O(1) instead of O(n)
+        return engagementBetLookupById[id]
     }
     
-    // MARK: - Progress Tracking (FIXED)
+    // MARK: - Parlay Management
+    
+    func placeParlayBet(wager: Double) {
+        guard canAffordWager(wager) else { return }
+        guard betSlip.totalBets > 1 else {
+            placeBets()
+            return
+        }
+        
+        deductFromBalance(wager)
+        
+        let parlayBet = ParlayBet(
+            id: UUID(),
+            legs: betSlip.readingBets,
+            wager: wager,
+            combinedOdds: betSlip.calculateParlayOdds(),
+            startDate: Date()
+        )
+        
+        for var bet in betSlip.readingBets {
+            bet.parlayId = parlayBet.id
+            bet.wager = wager / Double(betSlip.readingBets.count)
+            placedBets.append(bet)
+            
+            betProgress[bet.id] = BetProgress(
+                dailyProgress: 0,
+                totalPagesRead: 0,
+                currentPagePosition: bet.book.readingStartPage - 1,
+                lastReadPage: bet.book.readingStartPage - 1
+            )
+        }
+        
+        activeParlays.append(parlayBet)
+        updateLookupDictionaries()
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            betSlip.clearAll()
+        }
+        
+        NotificationCenter.default.post(name: NSNotification.Name("BetsPlaced"), object: nil)
+    }
+    
+    func checkParlayProgress(parlayId: UUID) {
+        guard let parlayIndex = activeParlays.firstIndex(where: { $0.id == parlayId }) else { return }
+        
+        var parlay = activeParlays[parlayIndex]
+        
+        for leg in parlay.legs {
+            if isBookCompleted(for: leg.id) {
+                parlay.markLegCompleted(leg.id)
+            }
+        }
+        
+        if parlay.status == .won {
+            addToBalance(parlay.totalPayout)
+            activeParlays[parlayIndex] = parlay
+            
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ParlayWon"),
+                object: nil,
+                userInfo: ["parlayId": parlayId, "payout": parlay.totalPayout]
+            )
+        }
+        
+        activeParlays[parlayIndex] = parlay
+    }
+    
+    // MARK: - Progress Tracking
     
     func updateReadingProgress(for betId: UUID, startingPage: Int, endingPage: Int) {
         guard let bet = placedBets.first(where: { $0.id == betId }) else { return }
@@ -133,7 +208,6 @@ class ReadSlipViewModel: ObservableObject {
         let clampedEndingPage = min(endingPage, bet.book.readingEndPage)
         let pagesRead = max(0, clampedEndingPage - clampedStartingPage + 1)
         
-        // Update consolidated progress
         var progress = betProgress[betId] ?? BetProgress()
         progress.dailyProgress += pagesRead
         progress.totalPagesRead += pagesRead
@@ -141,14 +215,21 @@ class ReadSlipViewModel: ObservableObject {
         progress.lastReadPage = clampedEndingPage
         betProgress[betId] = progress
         
-        // Persist to Core Data
-        coreDataManager.saveReadingSession(
-            betId: betId,
-            bookId: bet.book.id,
-            startPage: clampedStartingPage,
-            endPage: clampedEndingPage,
-            pagesRead: pagesRead
-        )
+        if let parlayId = bet.parlayId {
+            checkParlayProgress(parlayId: parlayId)
+        }
+        
+        // FIXED: Use repository instead of coreDataManager
+        do {
+            try repository.addSession(
+                to: bet.book.id,
+                pages: pagesRead,
+                minutes: 0,
+                note: nil
+            )
+        } catch {
+            print("Failed to save reading session: \(error)")
+        }
         
         checkForCompletedBets()
     }
@@ -182,7 +263,6 @@ class ReadSlipViewModel: ObservableObject {
     
     func getLastReadPage(for betId: UUID) -> Int {
         let lastPage = betProgress[betId]?.lastReadPage ?? 1
-        guard let bet = placedBets.first(where: { $0.id == betId }) else { return lastPage }
         return lastPage
     }
     
@@ -236,11 +316,11 @@ class ReadSlipViewModel: ObservableObject {
     
     // MARK: - Betting
     
-    func addBet(book: Book, timeframe: String, odds: String) {
+    func addBet(book: Book, timeframe: String, odds: String, goalUnit: ReadingPreferences.GoalUnit = .pages) {
         guard !hasActiveBets(for: book.id) else { return }
-        
+
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            betSlip.addReadingBet(book: book, timeframe: timeframe, odds: odds)
+            betSlip.addReadingBet(book: book, timeframe: timeframe, odds: odds, goalUnit: goalUnit)
         }
     }
     
@@ -304,7 +384,6 @@ class ReadSlipViewModel: ObservableObject {
             engagementProgress[bet.id] = goalProgress
         }
         
-        // OPTIMIZED: Update lookup dictionaries after modifying arrays
         updateLookupDictionaries()
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -347,8 +426,24 @@ class ReadSlipViewModel: ObservableObject {
         
         journalEntries.append(entry)
         
-        // Persist to Core Data
-        coreDataManager.saveJournalEntry(entry)
+        // FIXED: Use repository instead of coreDataManager
+        do {
+            if let extraData = try? JSONEncoder().encode([
+                "sessionDuration": Int(entry.sessionDuration),
+                "pagesRead": entry.pagesRead,
+                "startingPage": entry.startingPage,
+                "endingPage": entry.endingPage
+            ]) {
+                try repository.addJournalEntry(
+                    to: book.id,
+                    text: entry.comment,
+                    mood: nil,
+                    extra: extraData
+                )
+            }
+        } catch {
+            print("Failed to save journal entry: \(error)")
+        }
     }
     
     func processCompletedSession(_ session: ReadingSession) {
@@ -378,9 +473,9 @@ class ReadSlipViewModel: ObservableObject {
         for bet in betsToComplete {
             let currentPage = getCurrentPagePosition(for: bet.id)
             let wasSuccessful = currentPage >= bet.book.readingEndPage
-            let payout = wasSuccessful ? bet.totalPayout : 0
             
-            if wasSuccessful {
+            if bet.parlayId == nil && wasSuccessful {
+                let payout = bet.totalPayout
                 addToBalance(payout)
             }
             
@@ -389,7 +484,7 @@ class ReadSlipViewModel: ObservableObject {
                 completedDate: Date(),
                 totalPagesRead: getTotalPagesRead(for: bet.id),
                 wasSuccessful: wasSuccessful,
-                payout: payout
+                payout: bet.parlayId == nil ? (wasSuccessful ? bet.totalPayout : 0) : 0
             )
             
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -399,7 +494,6 @@ class ReadSlipViewModel: ObservableObject {
             }
         }
         
-        // OPTIMIZED: Update lookup dictionaries after modifying arrays
         updateLookupDictionaries()
     }
     

@@ -13,6 +13,7 @@ struct FullScreenBettingView: View {
     let onClose: () -> Void
     @State private var selectedReadingOdds: String?
     @State private var selectedJournalOdds: String?
+    @State private var selectedGoalUnit: ReadingPreferences.GoalUnit = .pages
 
     var body: some View {
         NavigationView {
@@ -145,6 +146,11 @@ struct FullScreenBettingView: View {
     private var readingCompletionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             readingCompletionHeader
+
+            if book.hasChapters {
+                goalUnitPicker
+            }
+
             readingOddsGrid
         }
         .padding(20)
@@ -157,9 +163,26 @@ struct FullScreenBettingView: View {
             .foregroundColor(.goodreadsBrown)
     }
 
+    private var goalUnitPicker: some View {
+        VStack(spacing: 8) {
+            Text("Select Goal Unit")
+                .font(.nunitoSemiBold(size: 14))
+                .foregroundColor(.readlayTan)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Picker("Goal Unit", selection: $selectedGoalUnit) {
+                Text("Pages").tag(ReadingPreferences.GoalUnit.pages)
+                if book.hasChapters {
+                    Text("Chapters").tag(ReadingPreferences.GoalUnit.chapters)
+                }
+            }
+            .pickerStyle(SegmentedPickerStyle())
+        }
+    }
+
     private var readingOddsGrid: some View {
         LazyVGrid(columns: gridColumns, spacing: 12) {
-            ForEach(book.odds, id: \.0) { label, odd in
+            ForEach(selectedGoalUnit == .pages ? book.odds : book.chapterOdds, id: \.0) { label, odd in
                 readingOddsButton(label: label, odd: odd)
             }
         }
@@ -179,7 +202,7 @@ struct FullScreenBettingView: View {
     private func readingButtonAction(label: String, odd: String) {
         withAnimation(.easeInOut(duration: 0.15)) {
             selectedReadingOdds = selectedReadingOdds == odd ? nil : odd
-            readSlipViewModel.addBet(book: book, timeframe: label, odds: odd)
+            readSlipViewModel.addBet(book: book, timeframe: label, odds: odd, goalUnit: selectedGoalUnit)
         }
     }
 

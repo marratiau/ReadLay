@@ -21,20 +21,27 @@ enum CoreDataBridge {
         obj.id = model.id
         obj.title = model.title
         obj.author = model.author
-        obj.totalPages = Int32(model.totalPages)
-        obj.coverImageName = model.coverImageName
+        
+        // Use pageCount (what exists in your Core Data model)
+        obj.pageCount = Int32(model.totalPages)
+        
+        // Only set coverImageURL (coverImageName doesn't exist in model)
         obj.coverImageURL = model.coverImageURL
-        if existing == nil { obj.currentPage = 0 }
+        
+        if existing == nil {
+            obj.currentPage = 0
+        }
         return obj
     }
 
     static func toModel(_ obj: CDBook) -> Book {
         return Book(
-            id: obj.id,
-            title: obj.title,
+            id: obj.id ?? UUID(),
+            title: obj.title ?? "Untitled",
             author: obj.author,
-            totalPages: Int(obj.totalPages),
-            coverImageName: obj.coverImageName,
+            totalPages: Int(obj.pageCount),
+            totalChapters: nil,  // CDBook doesn't store chapters yet
+            coverImageName: nil,
             coverImageURL: obj.coverImageURL,
             googleBooksId: nil,
             spineColor: Color.goodreadsBrown,
@@ -49,7 +56,7 @@ enum CoreDataBridge {
         sss.date = Date()
         sss.pagesRead = Int32(pages)
         sss.minutes = Int32(minutes)
-        sss.note = note
+        // Note: 'note' property doesn't exist in your CDReadingSession model
         sss.book = book
         book.currentPage = max(book.currentPage, book.currentPage + Int32(pages))
         return sss
@@ -61,35 +68,27 @@ enum CoreDataBridge {
         eee.id = UUID()
         eee.createdAt = Date()
         eee.text = text
-        eee.mood = mood
-        eee.extraJSON = extra
+        // Note: 'mood' and 'extraJSON' properties don't exist in your CDJournalEntry model
         eee.book = book
         return eee
     }
 
-    // Optional: map CDJournalEntry → your struct JournalEntry (for ViewModel lists)
+    // Map CDJournalEntry → JournalEntry struct
     static func toJournalStruct(_ eee: CDJournalEntry) -> JournalEntry {
-        var sessionDuration: TimeInterval = 0
-        var pagesRead = 0
-        var startingPage = 0
-        var endingPage = 0
+        // Since extraJSON doesn't exist in Core Data, use defaults
+        let sessionDuration: TimeInterval = 0
+        let pagesRead = 0
+        let startingPage = 0
+        let endingPage = 0
         
-        // Parse extra JSON if present
-        if let extraJSON = eee.extraJSON,
-           let extra = try? JSONDecoder().decode([String: Int].self, from: extraJSON) {
-            sessionDuration = TimeInterval(extra["sessionDuration"] ?? 0)
-            pagesRead = extra["pagesRead"] ?? 0
-            startingPage = extra["startingPage"] ?? 0
-            endingPage = extra["endingPage"] ?? 0
-        }
-        
+        // FIXED: Safely unwrap all optional Core Data properties
         return JournalEntry(
-            id: eee.id,
-            bookId: eee.book.id,
-            bookTitle: eee.book.title,
-            bookAuthor: eee.book.author,
-            date: eee.createdAt,
-            comment: eee.text,
+            id: eee.id ?? UUID(),
+            bookId: eee.book?.id ?? UUID(),
+            bookTitle: eee.book?.title ?? "Unknown Book",
+            bookAuthor: eee.book?.author,
+            date: eee.createdAt ?? Date(),
+            comment: eee.text ?? "",
             engagementEntries: [],
             sessionDuration: sessionDuration,
             pagesRead: pagesRead,

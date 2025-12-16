@@ -11,6 +11,7 @@ struct Book: Identifiable, Hashable, Equatable {
     let title: String
     let author: String?
     let totalPages: Int
+    let totalChapters: Int?  // Optional - not all books have this
     let coverImageName: String?
     let coverImageURL: String?
     let googleBooksId: String?
@@ -28,6 +29,12 @@ struct Book: Identifiable, Hashable, Equatable {
     private static var readingPreferenceSummaryCache: [UUID: String] = [:]
     private static var oddsCache: [UUID: [(String, String)]] = [:]
     private static var journalOddsCache: [UUID: [(String, String)]] = [:]
+
+    // Chapter support caches
+    private static var effectiveTotalChaptersCache: [UUID: Int] = [:]
+    private static var readingStartChapterCache: [UUID: Int] = [:]
+    private static var readingEndChapterCache: [UUID: Int] = [:]
+    private static var chapterOddsCache: [UUID: [(String, String)]] = [:]
     
     var readingPreferences: ReadingPreferences {
         get {
@@ -85,7 +92,126 @@ struct Book: Identifiable, Hashable, Equatable {
         Book.readingEndPageCache[id] = result
         return result
     }
-    
+
+    // MARK: - Chapter Support
+
+    var hasChapters: Bool {
+        return totalChapters != nil && totalChapters! > 0
+    }
+
+    var effectiveTotalChapters: Int {
+        if let cached = Book.effectiveTotalChaptersCache[id] {
+            return cached
+        }
+
+        guard let totalChapters = totalChapters, totalChapters > 0 else {
+            return 0
+        }
+
+        let prefs = readingPreferences
+        let result: Int
+
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            result = totalChapters
+        case .mainOnly:
+            result = max(0, totalChapters - prefs.estimatedFrontMatterChapters - prefs.estimatedBackMatterChapters)
+        case .custom:
+            // For custom, use chapter range if provided, otherwise estimate from page range
+            if let startChapter = prefs.customStartChapter, let endChapter = prefs.customEndChapter {
+                result = max(0, endChapter - startChapter + 1)
+            } else {
+                // Estimate chapters from page range
+                let pagePercentage = Double(effectiveTotalPages) / Double(totalPages)
+                result = Int(Double(totalChapters) * pagePercentage)
+            }
+        }
+
+        Book.effectiveTotalChaptersCache[id] = result
+        return result
+    }
+
+    var readingStartChapter: Int {
+        if let cached = Book.readingStartChapterCache[id] {
+            return cached
+        }
+
+        guard hasChapters else {
+            return 1
+        }
+
+        let prefs = readingPreferences
+        let result: Int
+
+        switch prefs.pageCountingStyle {
+        case .inclusive, .mainOnly:
+            result = 1 + prefs.estimatedFrontMatterChapters
+        case .custom:
+            result = prefs.customStartChapter ?? 1
+        }
+
+        Book.readingStartChapterCache[id] = result
+        return result
+    }
+
+    var readingEndChapter: Int {
+        if let cached = Book.readingEndChapterCache[id] {
+            return cached
+        }
+
+        guard let totalChapters = totalChapters, totalChapters > 0 else {
+            return 1
+        }
+
+        let prefs = readingPreferences
+        let result: Int
+
+        switch prefs.pageCountingStyle {
+        case .inclusive:
+            result = totalChapters
+        case .mainOnly:
+            result = totalChapters - prefs.estimatedBackMatterChapters
+        case .custom:
+            result = prefs.customEndChapter ?? totalChapters
+        }
+
+        Book.readingEndChapterCache[id] = result
+        return result
+    }
+
+    var chapterOdds: [(String, String)] {
+        if let cached = Book.chapterOddsCache[id] {
+            return cached
+        }
+
+        guard hasChapters else {
+            return []
+        }
+
+        let effectiveChapters = effectiveTotalChapters
+        guard effectiveChapters > 0 else {
+            return []
+        }
+
+        // Generate standard options: 1, 2, 3 chapters per day
+        let option1Days = effectiveChapters  // 1 chapter/day
+        let option2Days = Int(ceil(Double(effectiveChapters) / 2.0))  // 2 chapters/day
+        let option3Days = Int(ceil(Double(effectiveChapters) / 3.0))  // 3 chapters/day
+
+        let odds1 = OddsCalculator.calculateChapterReadingOdds(book: self, timeframeDays: option1Days)
+        let odds2 = OddsCalculator.calculateChapterReadingOdds(book: self, timeframeDays: option2Days)
+        let odds3 = OddsCalculator.calculateChapterReadingOdds(book: self, timeframeDays: option3Days)
+
+        let result = [
+            ("1 Chapter/Day", odds1),
+            ("2 Chapters/Day", odds2),
+            ("3 Chapters/Day", odds3)
+        ]
+
+        Book.chapterOddsCache[id] = result
+        return result
+    }
+
     // Implement Hashable
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -138,45 +264,21 @@ struct Book: Identifiable, Hashable, Equatable {
         if let cached = Book.oddsCache[id] {
             return cached
         }
-        let baseMultiplier = difficulty.multiplier
-        let pagesFactor = Double(effectiveTotalPages) / 300.0
-        
-        let dayOdds = calculateOdds(timeframe: 1, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
-        let weekOdds = calculateOdds(timeframe: 7, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
-        let monthOdds = calculateOdds(timeframe: 30, baseMultiplier: baseMultiplier, pagesFactor: pagesFactor)
-        
+
+        // Use centralized OddsCalculator for consistency
+        let dayOdds = OddsCalculator.calculateReadingOdds(book: self, timeframeDays: 1)
+        let weekOdds = OddsCalculator.calculateReadingOdds(book: self, timeframeDays: 7)
+        let monthOdds = OddsCalculator.calculateReadingOdds(book: self, timeframeDays: 30)
+
         let result = [
-            ("1 Day", formatOdds(dayOdds)),
-            ("1 Week", formatOdds(weekOdds)),
-            ("1 Month", formatOdds(monthOdds))
+            ("1 Day", dayOdds),
+            ("1 Week", weekOdds),
+            ("1 Month", monthOdds)
         ]
-        
+
         // Store in static cache
         Book.oddsCache[id] = result
         return result
-    }
-    
-    private func calculateOdds(timeframe: Int, baseMultiplier: Double, pagesFactor: Double) -> Int {
-        let pagesPerDay = Double(effectiveTotalPages) / Double(timeframe)
-        
-        let difficultyFactor: Double
-        switch timeframe {
-        case 1:
-            difficultyFactor = min(pagesPerDay / 20.0, 8.0)
-        case 7:
-            difficultyFactor = min(pagesPerDay / 10.0, 3.0)
-        case 30:
-            difficultyFactor = min(pagesPerDay / 5.0, 1.5)
-        default:
-            difficultyFactor = 1.0
-        }
-        
-        let finalOdds = 100 + Int((difficultyFactor * baseMultiplier * 50))
-        return min(max(finalOdds, 110), 800)
-    }
-    
-    private func formatOdds(_ value: Int) -> String {
-        return "+\(value)"
     }
     
     // OPTIMIZED: Cache journal odds calculations using static cache
@@ -185,39 +287,21 @@ struct Book: Identifiable, Hashable, Equatable {
         if let cached = Book.journalOddsCache[id] {
             return cached
         }
-        let baseMultiplier = difficulty.multiplier
-        
-        let fewOdds = calculateJournalOdds(count: "1-3", baseMultiplier: baseMultiplier)
-        let someOdds = calculateJournalOdds(count: "4-7", baseMultiplier: baseMultiplier)
-        let manyOdds = calculateJournalOdds(count: "8+", baseMultiplier: baseMultiplier)
-        
+
+        // Use centralized OddsCalculator for consistency
+        let fewOdds = OddsCalculator.calculateJournalOdds(book: self, noteTarget: "1-3")
+        let someOdds = OddsCalculator.calculateJournalOdds(book: self, noteTarget: "4-7")
+        let manyOdds = OddsCalculator.calculateJournalOdds(book: self, noteTarget: "8+")
+
         let result = [
-            ("1-3 Notes", formatOdds(fewOdds)),
-            ("4-7 Notes", formatOdds(someOdds)),
-            ("8+ Notes", formatOdds(manyOdds))
+            ("1-3 Notes", fewOdds),
+            ("4-7 Notes", someOdds),
+            ("8+ Notes", manyOdds)
         ]
-        
+
         // Store in static cache
         Book.journalOddsCache[id] = result
         return result
-    }
-    
-    private func calculateJournalOdds(count: String, baseMultiplier: Double) -> Int {
-        let difficultyFactor: Double
-        
-        switch count {
-        case "1-3":
-            difficultyFactor = 0.5
-        case "4-7":
-            difficultyFactor = 1.0
-        case "8+":
-            difficultyFactor = 2.0
-        default:
-            difficultyFactor = 1.0
-        }
-        
-        let finalOdds = 100 + Int((difficultyFactor * baseMultiplier * 30))
-        return min(max(finalOdds, 105), 400)
     }
     
     // ADDED: Computed properties for reading preferences
@@ -267,8 +351,17 @@ struct Book: Identifiable, Hashable, Equatable {
         readingPreferenceSummaryCache.removeValue(forKey: bookId)
         oddsCache.removeValue(forKey: bookId)
         journalOddsCache.removeValue(forKey: bookId)
+
+        // Clear chapter caches
+        effectiveTotalChaptersCache.removeValue(forKey: bookId)
+        readingStartChapterCache.removeValue(forKey: bookId)
+        readingEndChapterCache.removeValue(forKey: bookId)
+        chapterOddsCache.removeValue(forKey: bookId)
+
+        // Also clear OddsCalculator cache for this book
+        OddsCalculator.clearCache(for: bookId)
     }
-    
+
     /// Clear all caches (useful for memory management)
     static func clearAllCaches() {
         preferencesCache.removeAll()
@@ -279,5 +372,14 @@ struct Book: Identifiable, Hashable, Equatable {
         readingPreferenceSummaryCache.removeAll()
         oddsCache.removeAll()
         journalOddsCache.removeAll()
+
+        // Clear chapter caches
+        effectiveTotalChaptersCache.removeAll()
+        readingStartChapterCache.removeAll()
+        readingEndChapterCache.removeAll()
+        chapterOddsCache.removeAll()
+
+        // Also clear OddsCalculator cache
+        OddsCalculator.clearCache()
     }
 }

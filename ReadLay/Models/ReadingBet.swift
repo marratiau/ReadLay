@@ -3,6 +3,7 @@
 //  ReadLay
 //
 //  Created by Mateo Arratia on 6/4/25.
+//  Modified for parlay support
 //
 
 import SwiftUI
@@ -16,6 +17,11 @@ struct ReadingBet: Identifiable, Hashable, Equatable {
     var wager: Double
     let pagesPerDay: Int
     let totalDays: Int
+    var parlayId: UUID? = nil  // NEW: Track if part of a parlay
+
+    // Chapter support
+    let goalUnit: ReadingPreferences.GoalUnit  // Default: .pages
+    let chaptersPerDay: Int?  // nil if goalUnit is .pages
 
     // Day tracking properties
     let startDate: Date
@@ -40,7 +46,16 @@ struct ReadingBet: Identifiable, Hashable, Equatable {
     }
 
     // Initialize with day tracking
-    init(id: UUID = UUID(), book: Book, timeframe: String, odds: String, wager: Double, pagesPerDay: Int, totalDays: Int) {
+    init(id: UUID = UUID(),
+         book: Book,
+         timeframe: String,
+         odds: String,
+         wager: Double,
+         pagesPerDay: Int,
+         totalDays: Int,
+         parlayId: UUID? = nil,
+         goalUnit: ReadingPreferences.GoalUnit = .pages,
+         chaptersPerDay: Int? = nil) {
         self.id = id
         self.book = book
         self.timeframe = timeframe
@@ -48,6 +63,9 @@ struct ReadingBet: Identifiable, Hashable, Equatable {
         self.wager = wager
         self.pagesPerDay = pagesPerDay
         self.totalDays = totalDays
+        self.parlayId = parlayId
+        self.goalUnit = goalUnit
+        self.chaptersPerDay = chaptersPerDay
 
         // Set start date to today
         self.startDate = Date()
@@ -150,6 +168,7 @@ struct ReadingBet: Identifiable, Hashable, Equatable {
         let cleanOdds = odds.replacingOccurrences(of: "+", with: "")
         return Int(cleanOdds) ?? 150
     }
+    
     // Add these implementations
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -157,6 +176,17 @@ struct ReadingBet: Identifiable, Hashable, Equatable {
     
     static func == (lhs: ReadingBet, rhs: ReadingBet) -> Bool {
         return lhs.id == rhs.id
+    }
+    
+    // NEW: Check if part of parlay
+    var isPartOfParlay: Bool {
+        return parlayId != nil
+    }
+    
+    // NEW: Display text for parlay status
+    var parlayDisplayText: String? {
+        guard isPartOfParlay else { return nil }
+        return "Part of Parlay"
     }
 }
 
@@ -198,5 +228,29 @@ extension ReadingBet {
         if currentDay < totalDays {
             _currentDay = currentDay + 1
         }
+    }
+
+    // MARK: - Chapter Progress Methods
+
+    /// Convert page progress to chapter progress
+    func getCurrentChapterProgress(actualPagePosition: Int) -> Int {
+        guard let totalChapters = book.totalChapters else { return 0 }
+
+        let pageProgress = actualPagePosition - book.readingStartPage
+        let totalPages = book.effectiveTotalPages
+        let progressPercentage = Double(pageProgress) / Double(totalPages)
+
+        return Int(progressPercentage * Double(totalChapters))
+    }
+
+    /// Expected chapters by specific day
+    func expectedChaptersByDay(_ day: Int) -> Int {
+        guard goalUnit == .chapters, let chaptersPerDay = chaptersPerDay else { return 0 }
+        return min(day * chaptersPerDay, book.effectiveTotalChapters)
+    }
+
+    /// Expected chapters by today
+    var expectedChaptersToday: Int {
+        return expectedChaptersByDay(currentDay)
     }
 }
